@@ -1,0 +1,31 @@
+{
+  "algorithm": "gmm",
+  "n_components": 3,
+  "confidence_threshold": 0.85,
+  "states": [
+    {
+      "state_id": 0,
+      "state_name": "稳定",
+      "type": "pure",
+      "original_cluster_id": 0,
+      "count": 5122,
+      "stability_score": 2.400615044591901
+    },
+    {
+      "state_id": 1,
+      "state_name": "抖动",
+      "type": "pure",
+      "original_cluster_id": 2,
+      "count": 763,
+      "stability_score": 0.4039063282410979
+    },
+    {
+      "state_id": 2,
+      "state_name": "异常",
+      "type": "pure",
+      "original_cluster_id": 1,
+      "count": 431,
+      "stability_score": 0.18793646270641942
+    }
+  ]
+}
