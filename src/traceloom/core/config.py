@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     """根数据目录，可通过环境变量 TRACELOOM_DATA_DIR 覆盖"""
 
     # 2. 输出目录
-    OUTPUT_DIR: Path = Path("outputs")
+    OUTPUT_DIR: Path = DATA_DIR / "outputs"
     """输出目录，用于存储生成的文件和结果"""
 
     # 3. 径元库路径（支持多版本径元库）
@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     # 4. 模型路径（支持多模型实验）
     MODELS_DIR: Path = DATA_DIR / "models" / "default"
     """模型路径，支持多模型实验"""
+
+    BEFORE_LABEL_DIR: Path = DATA_DIR / "before_labels"
+    """.BeforeLabel 目录，用于存储.BeforeLabel 文件"""
+
+    AFTER_LABEL_DIR: Path = DATA_DIR / "after_labels"
+    """.AfterLabel 目录，用于存储.AfterLabel 文件"""
 
     # 5. 径元结构参数
     BODY_SIZE: int = 100
@@ -58,10 +64,7 @@ class Settings(BaseSettings):
     """径元存储的 Parquet 文件名"""
 
     # 7. 观测字段定义（顺序必须与原始数据一致）
-    OBSERVATION_FIELDS: tuple[str, ...] = (
-        "delay_up", "loss_up", "bw_up",
-        "delay_down", "loss_down", "bw_down"
-    )
+    OBSERVATION_FIELDS: tuple[str, ...] = ("delay_up", "loss_up", "bw_up", "delay_down", "loss_down", "bw_down")
     """观测字段定义，顺序必须与原始数据一致"""
 
     OBSERVATION_DIM: int = len(OBSERVATION_FIELDS)  # = 6
@@ -90,8 +93,9 @@ class Settings(BaseSettings):
         Attributes:
             env_prefix: str = "TRACELOOM_"
                 环境变量前缀，用于覆盖配置项
-        """
+        """,
     )
+
 
 def get_settings() -> Settings:
     """获取配置实例
@@ -102,6 +106,7 @@ def get_settings() -> Settings:
         Settings: 配置实例
     """
     return Settings()
+
 
 # 创建全局配置实例
 settings = get_settings()

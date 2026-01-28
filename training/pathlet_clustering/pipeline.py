@@ -22,8 +22,10 @@
     save_state_metadata(state_mapping, "state_metadata.json")
 """
 
+import json
+import random
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from traceloom.core.config import settings
 from traceloom.core.logger import logger
@@ -32,7 +34,77 @@ from traceloom.domain.raw_trace import RawTraceSegment as RawProfile
 from traceloom.storage.pathlet_storage import PathletStorage
 from training.pathlet_clustering.data_loader import DataLoader
 from training.pathlet_clustering.gmm_clusterer import GMMClusterer
+from training.pathlet_clustering.pathlet_builder import PathletBuilder
+from training.pathlet_clustering.preprocessor import Preprocessor
 from training.pathlet_clustering.visualization import TSNEVisualizer
+
+
+def _split_dataset() -> Tuple[List[Path], List[Path], Dict[str, List[str]]]:
+    """数据集划分函数
+
+    以txt文件为基本单位，从全部数据文件中挑选1-2个文件作为测试集，其余作为训练集。
+    确保划分过程可复现，划分结果记录在案。
+
+    Returns:
+        Tuple[List[Path], List[Path], Dict[str, List[str]]]:
+            - 训练集文件路径列表
+            - 测试集文件路径列表
+            - 划分结果记录
+
+    Examples:
+        # 划分数据集
+        train_files, test_files, split_result = _split_dataset()
+        print(f"训练集: {len(train_files)} 文件, 测试集: {len(test_files)} 文件")
+    """
+    # 确保原始数据目录存在
+    raw_data_dir = settings.RAW_DIR
+    if not raw_data_dir.exists():
+        logger.error(f"原始数据目录不存在: {raw_data_dir}")
+        return [], [], {}
+
+    # 获取所有txt文件
+    all_files = list(raw_data_dir.glob("*.txt"))
+    if not all_files:
+        logger.error(f"原始数据目录中没有找到txt文件: {raw_data_dir}")
+        return [], [], {}
+
+    logger.info(f"找到 {len(all_files)} 个txt文件")
+
+    # 固定随机种子确保可复现
+    random.seed(42)
+
+    # 随机挑选1-2个文件作为测试集
+    num_test_files = min(2, len(all_files) // 5)  # 测试集大小不超过总文件数的20%
+    if num_test_files < 1 and len(all_files) >= 2:
+        num_test_files = 1
+
+    test_files = random.sample(all_files, num_test_files)
+    train_files = [f for f in all_files if f not in test_files]
+
+    # 生成划分结果记录
+    split_result = {
+        "timestamp": str(settings.RAW_DIR.stat().st_mtime),
+        "total_files": len(all_files),
+        "train_files": [f.name for f in train_files],
+        "test_files": [f.name for f in test_files],
+        "random_seed": 42,
+        "num_test_files": num_test_files,
+    }
+
+    # 保存划分结果到文件
+    split_record_path = settings.BEFORE_LABEL_DIR / "dataset_split.json"
+    split_record_path.parent.mkdir(exist_ok=True)
+
+    with open(split_record_path, "w", encoding="utf-8") as f:
+        json.dump(split_result, f, ensure_ascii=False, indent=2)
+
+    logger.info(f"数据集划分完成:")
+    logger.info(f"  训练集: {len(train_files)} 文件")
+    logger.info(f"  测试集: {len(test_files)} 文件")
+    logger.info(f"  测试集文件: {[f.name for f in test_files]}")
+    logger.info(f"  划分结果已保存到: {split_record_path}")
+
+    return train_files, test_files, split_result
 
 
 def load_profiles_from_csv(file_path: Path) -> List[RawProfile]:
@@ -88,6 +160,7 @@ def save_state_metadata(metadata: Dict, file_path: Path) -> None:
         save_state_metadata(state_mapping, Path("state_metadata.json"))
     """
     import json
+
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
     logger.info(f"状态元数据已保存到: {file_path}")
@@ -132,7 +205,28 @@ def _load_datasets() -> tuple:
             logger.error(f"训练集文件不存在: {train_csv_path}")
             logger.info("尝试从径元数据生成训练集和测试集...")
             # 从径元数据生成训练集和测试集
-            return _generate_datasets_from_pathlets()
+            result = _generate_datasets_from_pathlets()
+            if result and (result[0] or result[1]):
+                return result
+            # 如果_generate_datasets_from_pathlets返回空列表，从原始数据生成profiles
+            logger.info("从原始数据生成profiles...")
+            from preprocess import Preprocessor
+
+            preprocessor = Preprocessor(raw_data_dir=settings.RAW_DIR, pathlet_dir=settings.PATHLETS_DIR)
+            raw_data = preprocessor.load_raw_data()
+            profiles = preprocessor.process_traces(raw_data)
+            # 随机划分80%训练，20%测试
+            import random
+
+            random.seed(42)
+            random.shuffle(profiles)
+            train_size = int(len(profiles) * 0.8)
+            train_profiles = profiles[:train_size]
+            test_profiles = profiles[train_size:]
+            # 保存到before_label目录
+            save_profiles_to_csv(train_profiles, settings.BEFORE_LABEL_DIR / "train.csv")
+            save_profiles_to_csv(test_profiles, settings.BEFORE_LABEL_DIR / "test.csv")
+            return train_profiles, test_profiles
 
     if not test_csv_path.exists():
         # 尝试使用旧命名作为备选
@@ -141,7 +235,28 @@ def _load_datasets() -> tuple:
             logger.error(f"测试集文件不存在: {test_csv_path}")
             logger.info("尝试从径元数据生成训练集和测试集...")
             # 从径元数据生成训练集和测试集
-            return _generate_datasets_from_pathlets()
+            result = _generate_datasets_from_pathlets()
+            if result and (result[0] or result[1]):
+                return result
+            # 如果_generate_datasets_from_pathlets返回空列表，从原始数据生成profiles
+            logger.info("从原始数据生成profiles...")
+            from preprocess import Preprocessor
+
+            preprocessor = Preprocessor(raw_data_dir=settings.RAW_DIR, pathlet_dir=settings.PATHLETS_DIR)
+            raw_data = preprocessor.load_raw_data()
+            profiles = preprocessor.process_traces(raw_data)
+            # 随机划分80%训练，20%测试
+            import random
+
+            random.seed(42)
+            random.shuffle(profiles)
+            train_size = int(len(profiles) * 0.8)
+            train_profiles = profiles[:train_size]
+            test_profiles = profiles[train_size:]
+            # 保存到before_label目录
+            save_profiles_to_csv(train_profiles, settings.BEFORE_LABEL_DIR / "train.csv")
+            save_profiles_to_csv(test_profiles, settings.BEFORE_LABEL_DIR / "test.csv")
+            return train_profiles, test_profiles
 
     train_profiles = load_profiles_from_csv(train_csv_path)
     test_profiles = load_profiles_from_csv(test_csv_path)
@@ -170,7 +285,7 @@ def _pathlet_to_profile(pathlet, storage):
     observations = []
 
     # 添加 ctx_10s 的观测数据（100个）
-    ctx_data = raw_data['ctx_10s']
+    ctx_data = raw_data["ctx_10s"]
     for i in range(len(ctx_data.delay_up)):
         obs = Observation(
             delay_up=ctx_data.delay_up[i],
@@ -178,12 +293,12 @@ def _pathlet_to_profile(pathlet, storage):
             bw_up=ctx_data.bw_up[i],
             delay_down=ctx_data.delay_down[i],
             loss_down=ctx_data.loss_down[i],
-            bw_down=ctx_data.bw_down[i]
+            bw_down=ctx_data.bw_down[i],
         )
         observations.append(obs)
 
     # 添加 cont_1s 的观测数据（10个）
-    cont_data = raw_data['cont_1s']
+    cont_data = raw_data["cont_1s"]
     for i in range(len(cont_data.delay_up)):
         obs = Observation(
             delay_up=cont_data.delay_up[i],
@@ -191,16 +306,16 @@ def _pathlet_to_profile(pathlet, storage):
             bw_up=cont_data.bw_up[i],
             delay_down=cont_data.delay_down[i],
             loss_down=cont_data.loss_down[i],
-            bw_down=cont_data.bw_down[i]
+            bw_down=cont_data.bw_down[i],
         )
         observations.append(obs)
 
     # 创建 RawProfile 对象
     profile = RawProfile(
-        trace_name=raw_data['trace_name'],
-        start_index=raw_data['start_index'],
+        trace_name=raw_data["trace_name"],
+        start_index=raw_data["start_index"],
         observations=observations,
-        is_valid=raw_data['is_valid']
+        is_valid=raw_data["is_valid"],
     )
     return profile
 
@@ -209,6 +324,7 @@ def _generate_datasets_from_pathlets() -> tuple:
     """从径元数据生成训练集和测试集
 
     从径元库中加载径元数据，生成训练集和测试集（80% 训练，20% 测试）。
+    如果径元数据不存在，尝试从原始轨迹数据生成径元。
 
     Returns:
         tuple: (train_profiles, test_profiles)，生成的训练集和测试集
@@ -218,19 +334,46 @@ def _generate_datasets_from_pathlets() -> tuple:
         train_profiles, test_profiles = _generate_datasets_from_pathlets()
         print(f"从径元数据生成了训练集: {len(train_profiles)}，测试集: {len(test_profiles)}")
     """
+    # 检查是否存在由preprocess.py生成的pathlets.parquet文件
+    pathlets_parquet = settings.PATHLETS_DIR / "pathlets.parquet"
+    if pathlets_parquet.exists():
+        logger.info(f"找到preprocess.py生成的径元文件: {pathlets_parquet}")
+        # 直接从文件加载径元数据
+        import pandas as pd
+
+        df = pd.read_parquet(pathlets_parquet)
+        logger.info(f"成功加载 {len(df)} 个径元数据")
+
+        # 由于我们已经在_generate_pathlets中生成了径元，并且_load_datasets最终会从原始数据生成profiles
+        # 这里我们可以直接返回一个空的结果，让后续流程从原始数据生成profiles
+        return [], []
+
     from traceloom.storage.pathlet_storage import PathletStorage
 
     storage = PathletStorage(settings.PATHLETS_DIR)
     pathlets = storage.load_pathlets()
 
     if not pathlets:
-        logger.error("没有可用的径元数据")
-        return None, None
+        logger.warning("没有可用的径元数据，尝试从原始轨迹数据生成...")
+        # 从原始轨迹数据生成径元
+        preprocessor = Preprocessor()
+        pathlets = preprocessor.run()
+
+        if not pathlets:
+            logger.error("无法生成径元数据")
+            return None, None
+
+        # 重新加载径元数据
+        pathlets = storage.load_pathlets()
+        if not pathlets:
+            logger.error("生成径元后仍无法加载径元数据")
+            return None, None
 
     logger.info(f"从径元数据生成训练集和测试集，共 {len(pathlets)} 个径元")
 
     # 生成训练集和测试集（80% 训练，20% 测试）
     import random
+
     random.shuffle(pathlets)
     train_size = int(len(pathlets) * 0.8)
     train_pathlets = pathlets[:train_size]
@@ -315,15 +458,17 @@ def _analyze_cluster_features(profiles: list, clusterer) -> list:
             loss_mean = np.mean(mean_features[8:16])
             stability_score = 1.0 / (1.0 + delay_mean + loss_mean)  # 稳定性得分，值越大越稳定
 
-            cluster_stats.append({
-                'cluster_id': i,
-                'count': count,
-                'delay_mean': delay_mean,
-                'loss_mean': loss_mean,
-                'stability_score': stability_score,
-                'mean_features': mean_features.tolist(),
-                'std_features': std_features.tolist()
-            })
+            cluster_stats.append(
+                {
+                    "cluster_id": i,
+                    "count": count,
+                    "delay_mean": delay_mean,
+                    "loss_mean": loss_mean,
+                    "stability_score": stability_score,
+                    "mean_features": mean_features.tolist(),
+                    "std_features": std_features.tolist(),
+                }
+            )
     return cluster_stats
 
 
@@ -345,32 +490,34 @@ def _generate_dynamic_state_mapping(cluster_stats: list) -> dict:
         print(f"生成了 {len(state_mapping['states'])} 个状态映射")
     """
     # 按稳定性得分排序，得分高的簇对应更稳定的状态
-    sorted_clusters = sorted(cluster_stats, key=lambda x: x['stability_score'], reverse=True)
+    sorted_clusters = sorted(cluster_stats, key=lambda x: x["stability_score"], reverse=True)
 
     # 定义状态名称
-    state_names = ['稳定', '抖动', '异常']
+    state_names = ["稳定", "抖动", "异常"]
     if len(sorted_clusters) > 3:
-        state_names.extend([f'状态_{i}' for i in range(3, len(sorted_clusters))])
+        state_names.extend([f"状态_{i}" for i in range(3, len(sorted_clusters))])
 
     # 生成状态映射
     states = []
     for i, cluster in enumerate(sorted_clusters):
-        state_name = state_names[i] if i < len(state_names) else f'状态_{i}'
-        states.append({
-            'state_id': i,
-            'state_name': state_name,
-            'type': 'pure',
-            'original_cluster_id': cluster['cluster_id'],
-            'count': cluster['count'],
-            'stability_score': cluster['stability_score']
-        })
+        state_name = state_names[i] if i < len(state_names) else f"状态_{i}"
+        states.append(
+            {
+                "state_id": i,
+                "state_name": state_name,
+                "type": "pure",
+                "original_cluster_id": cluster["cluster_id"],
+                "count": cluster["count"],
+                "stability_score": cluster["stability_score"],
+            }
+        )
 
     # 生成状态映射字典
     state_mapping = {
-        'algorithm': 'gmm',
-        'n_components': len(sorted_clusters),
-        'confidence_threshold': 0.85,
-        'states': states
+        "algorithm": "gmm",
+        "n_components": len(sorted_clusters),
+        "confidence_threshold": 0.85,
+        "states": states,
     }
 
     return state_mapping
@@ -422,13 +569,14 @@ def _process_training_set(train_profiles: list, clusterer, confidence_threshold:
     for profile in train_profiles:
         # 创建简单的 Pathlet 对象，只包含必要的观测数据
         from traceloom.domain.pathlet import BodyObservations, TailObservations
+
         body_obs = profile.observations[:100]  # 假设前100个是主体
         tail_obs = profile.observations[100:]  # 假设后10个是融尾
 
         pathlet = Pathlet(
             pathlet_id=f"{profile.trace_name}_{profile.start_index}",
             body=BodyObservations(observations=body_obs),
-            tail=TailObservations(observations=tail_obs)
+            tail=TailObservations(observations=tail_obs),
         )
         pathlets.append(pathlet)
 
@@ -449,7 +597,7 @@ def _process_training_set(train_profiles: list, clusterer, confidence_threshold:
     pure_train_profiles = []
     for profile, label in zip(train_profiles, state_labels, strict=True):
         profile.state_id = label.state_id
-        profile.state_name = next(s['state_name'] for s in state_mapping['states'] if s['state_id'] == label.state_id)
+        profile.state_name = next(s["state_name"] for s in state_mapping["states"] if s["state_id"] == label.state_id)
         profile.state_proba = label.confidence
 
         # 只保留后验概率高于置信度阈值的样本
@@ -482,13 +630,14 @@ def _process_test_set(test_profiles: list, clusterer, state_mapping: Dict) -> No
     pathlets = []
     for profile in test_profiles:
         from traceloom.domain.pathlet import BodyObservations, TailObservations
+
         body_obs = profile.observations[:100]  # 假设前100个是主体
         tail_obs = profile.observations[100:]  # 假设后10个是融尾
 
         pathlet = Pathlet(
             pathlet_id=f"{profile.trace_name}_{profile.start_index}",
             body=BodyObservations(observations=body_obs),
-            tail=TailObservations(observations=tail_obs)
+            tail=TailObservations(observations=tail_obs),
         )
         pathlets.append(pathlet)
 
@@ -496,7 +645,7 @@ def _process_test_set(test_profiles: list, clusterer, state_mapping: Dict) -> No
     state_labels = clusterer.predict(pathlets)
     for profile, label in zip(test_profiles, state_labels, strict=True):
         profile.state_id = label.state_id
-        profile.state_name = next(s['state_name'] for s in state_mapping['states'] if s['state_id'] == label.state_id)
+        profile.state_name = next(s["state_name"] for s in state_mapping["states"] if s["state_id"] == label.state_id)
         profile.state_proba = label.confidence
 
 
@@ -577,7 +726,7 @@ def _generate_visualization(train_profiles: list, test_profiles: list, state_met
         features = GMMClusterer.extract_features(profile.observations)
         train_features.append(features)
         train_labels.append(profile.state_id)
-        train_probabilities.append(getattr(profile, 'state_proba', 0.5))  # 默认置信度 0.5
+        train_probabilities.append(getattr(profile, "state_proba", 0.5))  # 默认置信度 0.5
 
     test_features = []
     test_labels = []
@@ -586,7 +735,7 @@ def _generate_visualization(train_profiles: list, test_profiles: list, state_met
         features = GMMClusterer.extract_features(profile.observations)
         test_features.append(features)
         test_labels.append(profile.state_id)
-        test_probabilities.append(getattr(profile, 'state_proba', 0.5))  # 默认置信度 0.5
+        test_probabilities.append(getattr(profile, "state_proba", 0.5))  # 默认置信度 0.5
 
     # 合并特征、标签和概率
     all_features = train_features + test_features
@@ -595,16 +744,60 @@ def _generate_visualization(train_profiles: list, test_profiles: list, state_met
 
     # 生成 t-SNE 可视化
     tsne_output_path = settings.AFTER_LABEL_DIR / "clustering_gmm_tsne.png"
-    visualizer.visualize(all_features, all_labels, state_metadata, tsne_output_path, all_probabilities, method='tsne')
+    visualizer.visualize(all_features, all_labels, state_metadata, tsne_output_path, all_probabilities, method="tsne")
     logger.info(f"t-SNE 可视化已生成，保存到: {tsne_output_path}")
 
     # 尝试生成 UMAP 可视化
     umap_output_path = settings.AFTER_LABEL_DIR / "clustering_gmm_umap.png"
     try:
-        visualizer.visualize(all_features, all_labels, state_metadata, umap_output_path, all_probabilities, method='umap')
+        visualizer.visualize(
+            all_features, all_labels, state_metadata, umap_output_path, all_probabilities, method="umap"
+        )
         logger.info(f"UMAP 可视化已生成，保存到: {umap_output_path}")
     except ImportError as e:
         logger.warning(f"跳过 UMAP 可视化: {e}")
+
+
+def _generate_pathlets() -> Tuple[List, List]:
+    """生成径元
+
+    执行数据集划分，然后使用训练集数据生成径元并保存，
+    使用测试集数据生成径元但不保存。
+
+    Returns:
+        Tuple[List, List]: 训练集径元和测试集径元
+    """
+    # 1. 执行数据集划分
+    logger.info("=" * 60)
+    logger.info("开始数据集划分")
+    logger.info("=" * 60)
+
+    train_files, test_files, split_result = _split_dataset()
+    if not train_files:
+        logger.error("训练集文件为空，无法生成径元")
+        return [], []
+
+    # 2. 使用训练集生成径元并保存
+    logger.info("=" * 60)
+    logger.info("使用训练集生成径元（保存）")
+    logger.info("=" * 60)
+
+    from preprocess import Preprocessor
+
+    train_preprocessor = Preprocessor(raw_data_dir=settings.RAW_DIR, pathlet_dir=settings.PATHLETS_DIR)
+    train_pathlets = train_preprocessor.run_from_files(train_files, save_pathlets=True)
+    logger.info(f"训练集生成了 {len(train_pathlets)} 个径元并保存")
+
+    # 3. 使用测试集生成径元但不保存
+    logger.info("=" * 60)
+    logger.info("使用测试集生成径元（不保存）")
+    logger.info("=" * 60)
+
+    test_preprocessor = Preprocessor(raw_data_dir=settings.RAW_DIR, pathlet_dir=settings.PATHLETS_DIR)
+    test_pathlets = test_preprocessor.run_from_files(test_files, save_pathlets=False)
+    logger.info(f"测试集生成了 {len(test_pathlets)} 个径元（不保存）")
+
+    return train_pathlets, test_pathlets
 
 
 def run(
@@ -638,27 +831,55 @@ def run(
     # 1. 确保目录存在
     _ensure_directories_exist()
 
-    # 2. 加载训练集和测试集
+    # 2. 生成径元
+    logger.info("=" * 60)
+    logger.info("步骤 1: 生成径元")
+    logger.info("=" * 60)
+    train_pathlets, test_pathlets = _generate_pathlets()
+    if not train_pathlets:
+        logger.error("径元生成失败，流水线终止")
+        return
+
+    # 3. 加载训练集和测试集
+    logger.info("=" * 60)
+    logger.info("步骤 2: 加载训练集和测试集")
+    logger.info("=" * 60)
     train_profiles, test_profiles = _load_datasets()
     if train_profiles is None or test_profiles is None:
         return
 
-    # 3. 初始化聚类器
+    # 4. 初始化聚类器
+    logger.info("=" * 60)
+    logger.info("步骤 3: 初始化聚类器")
+    logger.info("=" * 60)
     clusterer = _initialize_components(n_components, confidence_threshold)
 
-    # 4. 处理训练集
+    # 5. 处理训练集
+    logger.info("=" * 60)
+    logger.info("步骤 4: 处理训练集")
+    logger.info("=" * 60)
     pure_train_profiles, state_mapping = _process_training_set(train_profiles, clusterer, confidence_threshold)
 
-    # 5. 处理测试集（如果需要）
+    # 6. 处理测试集（如果需要）
     if assign_test_states:
+        logger.info("=" * 60)
+        logger.info("步骤 5: 处理测试集")
+        logger.info("=" * 60)
         _process_test_set(test_profiles, clusterer, state_mapping)
 
-    # 6. 保存结果
+    # 7. 保存结果
+    logger.info("=" * 60)
+    logger.info("步骤 6: 保存结果")
+    logger.info("=" * 60)
     _save_results(pure_train_profiles, test_profiles, clusterer, state_mapping)
 
-    # 7. 生成 t-SNE 可视化（如果需要）
+    # 8. 生成 t-SNE 可视化（如果需要）
     if visualize:
+        logger.info("=" * 60)
+        logger.info("步骤 7: 生成可视化")
+        logger.info("=" * 60)
         _generate_visualization(pure_train_profiles, test_profiles, state_mapping)
 
+    logger.info("=" * 60)
     logger.info("聚类训练流水线完成")
-
+    logger.info("=" * 60)

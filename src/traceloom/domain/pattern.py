@@ -4,6 +4,7 @@
 统一解析和管理织样，支持多种格式输入
 """
 
+import json
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
@@ -251,7 +252,7 @@ class PatternParser:
         """从字符串创建织样
 
         参数:
-            s: 织样字符串
+            s: 织样字符串，可以是文本格式或JSON格式
 
         返回:
             Pattern: 解析后的Pattern对象
@@ -259,6 +260,17 @@ class PatternParser:
         异常:
             ValidationError: 字符串格式无效
         """
+        # 尝试解析为JSON格式
+        if s.strip().startswith("[") and s.strip().endswith("]"):
+            try:
+                json_data = json.loads(s)
+                if isinstance(json_data, list):
+                    return PatternParser._from_json(json_data)
+            except json.JSONDecodeError:
+                # JSON解析失败，继续尝试文本格式
+                pass
+
+        # 尝试解析为文本格式
         try:
             return Pattern.from_string(s)
         except ValueError as e:

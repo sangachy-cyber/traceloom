@@ -122,8 +122,13 @@ temp/
 # Data directories (except raw)
 data/after_label/
 data/before_label/
+data/after_labels/
+data/before_labels/
 data/processed/
 data/*.txt
 
 # Trae documents directory
 .trae/documents/
+
+output/
+outputs/

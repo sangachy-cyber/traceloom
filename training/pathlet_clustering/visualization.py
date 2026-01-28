@@ -97,13 +97,18 @@ class TSNEVisualizer:
         """
         unique_states = sorted(set(state_names))
         n_colors = len(unique_states)
-        cmap = get_cmap('tab10' if n_colors <= 10 else 'tab20')
-        return {
-            state: cmap(i / max(1, n_colors - 1))
-            for i, state in enumerate(unique_states)
-        }
+        cmap = get_cmap("tab10" if n_colors <= 10 else "tab20")
+        return {state: cmap(i / max(1, n_colors - 1)) for i, state in enumerate(unique_states)}
 
-    def visualize(self, features: List[np.ndarray], labels: List[int], state_metadata: Dict[str, Any], output_path: Path, probabilities: Optional[List[float]] = None, method: str = 'tsne') -> None:
+    def visualize(
+        self,
+        features: List[np.ndarray],
+        labels: List[int],
+        state_metadata: Dict[str, Any],
+        output_path: Path,
+        probabilities: Optional[List[float]] = None,
+        method: str = "tsne",
+    ) -> None:
         """生成降维可视化
 
         Args:
@@ -138,26 +143,21 @@ class TSNEVisualizer:
             raise ValueError("概率值数量和特征数量不匹配")
 
         # 执行降维
-        if method == 'tsne':
+        if method == "tsne":
             logger.info(f"执行 t-SNE 降维，特征维度: {features.shape}")
             tsne = TSNE(
                 n_components=self.n_components,
                 perplexity=self.perplexity,
                 random_state=self.random_state,
-                init='pca',
-                learning_rate='auto'
+                init="pca",
+                learning_rate="auto",
             )
             result = tsne.fit_transform(features)
-        elif method == 'umap':
+        elif method == "umap":
             if UMAP is None:
                 raise ImportError("UMAP 库不可用，请先安装 umap-learn 包")
             logger.info(f"执行 UMAP 降维，特征维度: {features.shape}")
-            umap = UMAP(
-                n_components=self.n_components,
-                random_state=self.random_state,
-                n_neighbors=15,
-                min_dist=0.1
-            )
+            umap = UMAP(n_components=self.n_components, random_state=self.random_state, n_neighbors=15, min_dist=0.1)
             result = umap.fit_transform(features)
         else:
             raise ValueError(f"不支持的降维方法: {method}，可选值: 'tsne' 或 'umap'")
@@ -165,7 +165,15 @@ class TSNEVisualizer:
         # 生成可视化
         self._plot_embedding(result, labels, state_metadata, output_path, probabilities, method)
 
-    def _plot_embedding(self, embedding_result: np.ndarray, labels: np.ndarray, state_metadata: Dict[str, Any], output_path: Path, probabilities: Optional[np.ndarray] = None, method: str = 'tsne') -> None:
+    def _plot_embedding(
+        self,
+        embedding_result: np.ndarray,
+        labels: np.ndarray,
+        state_metadata: Dict[str, Any],
+        output_path: Path,
+        probabilities: Optional[np.ndarray] = None,
+        method: str = "tsne",
+    ) -> None:
         """绘制降维结果
 
         Args:
@@ -182,8 +190,8 @@ class TSNEVisualizer:
             visualizer._plot_embedding(result, labels, state_metadata, output_path, probabilities, method='tsne')
         """
         # 设置中文字体
-        plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'DejaVu Sans']
-        plt.rcParams['axes.unicode_minus'] = False
+        plt.rcParams["font.sans-serif"] = ["SimHei", "Arial Unicode MS", "DejaVu Sans"]
+        plt.rcParams["axes.unicode_minus"] = False
 
         # 创建画布
         plt.figure(figsize=(10, 8))
@@ -214,12 +222,12 @@ class TSNEVisualizer:
         state_colors = {}
         state_is_pure = {}
 
-        if 'states' in state_metadata:
-            for state in state_metadata['states']:
-                if 'state_id' in state:
-                    state_names[state['state_id']] = state.get('state_name', f"状态_{state['state_id']}")
-                    state_colors[state['state_id']] = state.get('color', None)
-                    state_is_pure[state['state_id']] = state.get('type', 'pure') == 'pure'
+        if "states" in state_metadata:
+            for state in state_metadata["states"]:
+                if "state_id" in state:
+                    state_names[state["state_id"]] = state.get("state_name", f"状态_{state['state_id']}")
+                    state_colors[state["state_id"]] = state.get("color", None)
+                    state_is_pure[state["state_id"]] = state.get("type", "pure") == "pure"
         else:
             # 默认状态信息
             unique_labels = np.unique(labels)
@@ -235,13 +243,15 @@ class TSNEVisualizer:
                 state_name = state_names.get(label, f"状态_{label}")
                 state_colors[label] = color_map[state_name]
 
-        return {
-            'state_names': state_names,
-            'state_colors': state_colors,
-            'state_is_pure': state_is_pure
-        }
+        return {"state_names": state_names, "state_colors": state_colors, "state_is_pure": state_is_pure}
 
-    def _plot_scatter(self, embedding_result: np.ndarray, labels: np.ndarray, state_info: Dict[str, Any], probabilities: Optional[np.ndarray] = None) -> None:
+    def _plot_scatter(
+        self,
+        embedding_result: np.ndarray,
+        labels: np.ndarray,
+        state_info: Dict[str, Any],
+        probabilities: Optional[np.ndarray] = None,
+    ) -> None:
         """绘制散点图
 
         Args:
@@ -250,9 +260,9 @@ class TSNEVisualizer:
             state_info: 状态信息
             probabilities: 置信度列表
         """
-        state_names = state_info['state_names']
-        state_colors = state_info['state_colors']
-        state_is_pure = state_info['state_is_pure']
+        state_names = state_info["state_names"]
+        state_colors = state_info["state_colors"]
+        state_is_pure = state_info["state_is_pure"]
 
         for label in np.unique(labels):
             mask = labels == label
@@ -270,17 +280,12 @@ class TSNEVisualizer:
 
             # 绘制散点
             scatter = plt.scatter(
-                embedding_result[mask, 0],
-                embedding_result[mask, 1],
-                c=color,
-                label=state_name,
-                alpha=alpha,
-                s=50
+                embedding_result[mask, 0], embedding_result[mask, 1], c=color, label=state_name, alpha=alpha, s=50
             )
 
             # 非纯状态添加灰色细边框
             if not is_pure:
-                scatter.set_edgecolor('gray')
+                scatter.set_edgecolor("gray")
                 scatter.set_linewidth(0.5)
 
     def _add_plot_details(self, method: str) -> None:
@@ -289,14 +294,14 @@ class TSNEVisualizer:
         Args:
             method: 降维方法
         """
-        if method == 'tsne':
-            plt.title('网络状态聚类 t-SNE 可视化', fontsize=16)
-            plt.xlabel('t-SNE 维度 1', fontsize=12)
-            plt.ylabel('t-SNE 维度 2', fontsize=12)
+        if method == "tsne":
+            plt.title("网络状态聚类 t-SNE 可视化", fontsize=16)
+            plt.xlabel("t-SNE 维度 1", fontsize=12)
+            plt.ylabel("t-SNE 维度 2", fontsize=12)
         else:  # umap
-            plt.title('网络状态聚类 UMAP 可视化', fontsize=16)
-            plt.xlabel('UMAP 维度 1', fontsize=12)
-            plt.ylabel('UMAP 维度 2', fontsize=12)
+            plt.title("网络状态聚类 UMAP 可视化", fontsize=16)
+            plt.xlabel("UMAP 维度 1", fontsize=12)
+            plt.ylabel("UMAP 维度 2", fontsize=12)
         plt.legend(fontsize=10)
         plt.grid(True, alpha=0.3)
 
@@ -308,7 +313,7 @@ class TSNEVisualizer:
             method: 降维方法
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
         plt.close()
 
         logger.info(f"{method.upper()} 可视化已保存到: {output_path}")
@@ -339,7 +344,7 @@ class TSNEVisualizer:
             features.append(feature)
 
             # 预测标签
-            if hasattr(clusterer, 'predict'):
+            if hasattr(clusterer, "predict"):
                 # 注意：这里需要根据聚类器的实际接口调整
                 prediction = clusterer.predict([pathlet])[0]
                 label = prediction.state_id
@@ -354,7 +359,7 @@ class TSNEVisualizer:
             "states": [
                 {"state_id": 0, "state_name": "稳定", "type": "pure"},
                 {"state_id": 1, "state_name": "抖动", "type": "pure"},
-                {"state_id": 2, "state_name": "异常", "type": "pure"}
+                {"state_id": 2, "state_name": "异常", "type": "pure"},
             ]
         }
 

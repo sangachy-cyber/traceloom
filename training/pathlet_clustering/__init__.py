@@ -7,11 +7,13 @@
 from training.pathlet_clustering.data_loader import DataLoader
 from training.pathlet_clustering.gmm_clusterer import GMMClusterer
 from training.pathlet_clustering.pathlet_builder import PathletBuilder
+from training.pathlet_clustering.preprocessor import Preprocessor
 from training.pathlet_clustering.visualization import TSNEVisualizer
 
 __all__ = [
     "DataLoader",
     "GMMClusterer",
     "TSNEVisualizer",
-    "PathletBuilder"
+    "PathletBuilder",
+    "Preprocessor"
 ]
