@@ -15,7 +15,7 @@ import typer
 # 添加项目根目录到 Python 搜索路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from training.pathlet.preprocessing import run as preprocess_run
+from training.pathlet_clustering.preprocessor import Preprocessor
 
 app = typer.Typer(help="LoomNet 预处理流水线", add_completion=False)
 
@@ -23,7 +23,7 @@ app = typer.Typer(help="LoomNet 预处理流水线", add_completion=False)
 @app.command("run")
 def run():
     """运行预处理流水线"""
-    preprocess_run()
+    Preprocessor().run()
 
 
 if __name__ == "__main__":

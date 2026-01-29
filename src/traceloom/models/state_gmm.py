@@ -29,7 +29,13 @@ class StateGMM:
     实现 GMM 模型，支持训练和推理，包含与训练侧完全一致的特征提取逻辑。
     """
 
-    def __init__(self, n_components: int = 3, confidence_threshold: float = 0.85, random_state: int = 42, model_path: Optional[Path] = None):
+    def __init__(
+        self,
+        n_components: int = 3,
+        confidence_threshold: float = 0.85,
+        random_state: int = 42,
+        model_path: Optional[Path] = None,
+    ):
         """初始化 GMM 模型
 
         参数:
@@ -100,7 +106,7 @@ class StateGMM:
                 has_loss,
                 cond_loss_mean,
                 loss_ratio,
-                loss_mean
+                loss_mean,
             ]
 
         # 计算上行和下行的特征

@@ -14,7 +14,8 @@ from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import RobustScaler
 
 from traceloom.core.logger import logger
-from traceloom.domain.features import FeatureExtractor
+from traceloom.core.utils import setup_chinese_font
+from traceloom.domain.features import GMMFeatureExtractor
 
 
 class GMMClusterer:
@@ -112,7 +113,8 @@ class GMMClusterer:
         # 预测状态概率
         return self.gmm.predict_proba(features).tolist()
 
-    def _extract_features(self, profile) -> np.ndarray:
+    @staticmethod
+    def _extract_features(profile) -> np.ndarray:
         """从网络剖面中提取特征
 
         参数:
@@ -121,7 +123,7 @@ class GMMClusterer:
         返回:
             np.ndarray: 特征向量
         """
-        extractor = FeatureExtractor()
+        extractor = GMMFeatureExtractor()
         return extractor.extract_features(profile.observations)
 
     @property
@@ -152,7 +154,9 @@ class TSNEVisualizer:
         self.perplexity = perplexity
         self.random_state = random_state
 
-    def visualize(self, features: List[np.ndarray], labels: List[int], state_metadata: Dict[str, Any], output_path: Path) -> None:
+    def visualize(
+        self, features: List[np.ndarray], labels: List[int], state_metadata: Dict[str, Any], output_path: Path
+    ) -> None:
         """生成 t-SNE 可视化
 
         参数:
@@ -175,15 +179,18 @@ class TSNEVisualizer:
             n_components=self.n_components,
             perplexity=self.perplexity,
             random_state=self.random_state,
-            init='pca',
-            learning_rate='auto'
+            init="pca",
+            learning_rate="auto",
         )
         tsne_result = tsne.fit_transform(features)
 
         # 生成可视化
         self._plot_tsne(tsne_result, labels, state_metadata, output_path)
 
-    def _plot_tsne(self, tsne_result: np.ndarray, labels: np.ndarray, state_metadata: Dict[str, Any], output_path: Path) -> None:
+    @staticmethod
+    def _plot_tsne(
+            tsne_result: np.ndarray, labels: np.ndarray, state_metadata: Dict[str, Any], output_path: Path
+    ) -> None:
         """绘制 t-SNE 结果
 
         参数:
@@ -193,25 +200,24 @@ class TSNEVisualizer:
             output_path: 输出路径
         """
         # 设置中文字体
-        plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'DejaVu Sans']
-        plt.rcParams['axes.unicode_minus'] = False
+        setup_chinese_font()
 
         # 创建画布
         plt.figure(figsize=(10, 8))
 
         # 获取状态信息
         state_names = {}
-        if 'states' in state_metadata:
-            for state in state_metadata['states']:
-                if 'state_id' in state and 'state_name' in state:
-                    state_names[state['state_id']] = state['state_name']
+        if "states" in state_metadata:
+            for state in state_metadata["states"]:
+                if "state_id" in state and "state_name" in state:
+                    state_names[state["state_id"]] = state["state_name"]
         else:
             # 默认状态名称
             state_names = {0: "稳定", 1: "抖动", 2: "异常"}
 
         # 绘制散点图
         unique_labels = np.unique(labels)
-        colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6']
+        colors = ["#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#9b59b6"]
 
         for i, label in enumerate(unique_labels):
             mask = labels == label
@@ -222,19 +228,19 @@ class TSNEVisualizer:
                 c=color,
                 label=state_names.get(label, f"状态_{label}"),
                 alpha=0.6,
-                s=50
+                s=50,
             )
 
         # 添加标题和图例
-        plt.title('网络状态聚类 t-SNE 可视化', fontsize=16)
-        plt.xlabel('t-SNE 维度 1', fontsize=12)
-        plt.ylabel('t-SNE 维度 2', fontsize=12)
+        plt.title("网络状态聚类 t-SNE 可视化", fontsize=16)
+        plt.xlabel("t-SNE 维度 1", fontsize=12)
+        plt.ylabel("t-SNE 维度 2", fontsize=12)
         plt.legend(fontsize=10)
         plt.grid(True, alpha=0.3)
 
         # 保存图像
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
         plt.close()
 
         logger.info(f"t-SNE 可视化已保存到: {output_path}")

@@ -19,6 +19,7 @@ from traceloom.models.state_gmm import StateGMM
 @dataclass
 class PathletInfo:
     """径元信息"""
+
     pathlet_id: str
     state_id: int
     trace_name: str
@@ -265,10 +266,7 @@ class GlobalSampler:
                     logger.warning(f"状态ID {state_id} 无径元，创建默认径元")
                     # 这里创建一个默认的径元信息
                     default_pathlet = PathletInfo(
-                        pathlet_id=f"default_{state_id}_0",
-                        state_id=state_id,
-                        trace_name="default",
-                        start_index=0
+                        pathlet_id=f"default_{state_id}_0", state_id=state_id, trace_name="default", start_index=0
                     )
                     state_pathlets = [default_pathlet]
                     logger.info(f"创建默认径元: {default_pathlet.pathlet_id}")
@@ -285,7 +283,7 @@ class GlobalSampler:
                     pathlet_id=pathlet.pathlet_id,
                     state_id=pathlet.state_id,
                     trace_name=pathlet.pathlet_id.split("_")[0],
-                    start_index=int(pathlet.pathlet_id.split("_")[1])
+                    start_index=int(pathlet.pathlet_id.split("_")[1]),
                 )
                 pathlet_sequence.append(pathlet_info)
 
@@ -321,5 +319,5 @@ class GlobalSampler:
             pathlet_id=pathlet.pathlet_id,
             state_id=pathlet.state_id,
             trace_name=pathlet.pathlet_id.split("_")[0],
-            start_index=int(pathlet.pathlet_id.split("_")[1])
+            start_index=int(pathlet.pathlet_id.split("_")[1]),
         )

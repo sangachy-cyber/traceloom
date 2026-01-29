@@ -5,14 +5,12 @@
 
 from traceloom.io.adapters.csv import CSVIO
 from traceloom.io.adapters.holowan import (
-    HoloWANDataPoint,
+    HoloWANPoint,
     HoloWANTrace,
 )
-from traceloom.storage.pathlet_storage import PathletStorage
 
 __all__ = [
     "HoloWANTrace",
-    "HoloWANDataPoint",
+    "HoloWANPoint",
     "CSVIO",
-    "PathletStorage",
 ]

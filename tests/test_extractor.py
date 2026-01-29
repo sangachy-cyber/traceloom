@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""测试数据加载器
-"""
+"""测试数据加载器"""
 
 import sys
 from pathlib import Path
@@ -23,14 +22,16 @@ def test_data_loader():
 
     # 创建测试数据
     n_rows = 200
-    df = pd.DataFrame({
-        "delay_up": np.random.normal(100, 10, n_rows),
-        "loss_up": np.random.normal(0.01, 0.005, n_rows),
-        "bw_up": np.random.normal(10, 2, n_rows),
-        "delay_down": np.random.normal(100, 10, n_rows),
-        "loss_down": np.random.normal(0.01, 0.005, n_rows),
-        "bw_down": np.random.normal(10, 2, n_rows)
-    })
+    df = pd.DataFrame(
+        {
+            "delay_up": np.random.normal(100, 10, n_rows),
+            "loss_up": np.random.normal(0.01, 0.005, n_rows),
+            "bw_up": np.random.normal(10, 2, n_rows),
+            "delay_down": np.random.normal(100, 10, n_rows),
+            "loss_down": np.random.normal(0.01, 0.005, n_rows),
+            "bw_down": np.random.normal(10, 2, n_rows),
+        }
+    )
 
     # 确保所有值为正数，且丢包率在0-1之间
     df["delay_up"] = df["delay_up"].abs()
@@ -51,6 +52,7 @@ def test_data_loader():
 
     # 保存到临时文件
     import tempfile
+
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = Path(tmpdir) / "test_profiles.csv"
         success = loader.profiles_to_csv(profiles, output_path)

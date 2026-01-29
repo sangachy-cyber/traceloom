@@ -4,9 +4,8 @@
 使用 SQLite 数据库存储织径任务的状态和信息。
 """
 
-
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 from traceloom.app.api.v1.schemas import WeaveRequest
 
@@ -33,7 +32,6 @@ class TaskStore:
         # 任务失败
         task_store.update_status(task_id, "failed", error="执行失败")
     """
-
 
     def __init__(self, db_path: str = "weaver_tasks.db"):
         """初始化任务存储。
@@ -77,11 +75,21 @@ class TaskStore:
         """
 
         dev = req.impairment_device
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
             "INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'accepted', NULL, NULL, NULL, ?, ?)",
-            (task_id, req.target_ip, req.weaving_pattern, engine_name,
-             dev.host, dev.port, dev.engine_id, dev.path_name, now, now)
+            (
+                task_id,
+                req.target_ip,
+                req.weaving_pattern,
+                engine_name,
+                dev.host,
+                dev.port,
+                dev.engine_id,
+                dev.path_name,
+                now,
+                now,
+            ),
         )
         self.conn.commit()
 
@@ -95,7 +103,7 @@ class TaskStore:
 
         self.conn.execute(
             "UPDATE tasks SET playback_file_path=?, updated_at=? WHERE task_id=?",
-            (playback_file_path, datetime.utcnow().isoformat(), task_id)
+            (playback_file_path, datetime.now(timezone.utc).isoformat(), task_id),
         )
         self.conn.commit()
 
@@ -108,7 +116,7 @@ class TaskStore:
 
         self.conn.execute(
             "UPDATE tasks SET started_at=?, updated_at=? WHERE task_id=?",
-            (datetime.utcnow().isoformat(), datetime.utcnow().isoformat(), task_id)
+            (datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat(), task_id),
         )
         self.conn.commit()
 
@@ -123,7 +131,7 @@ class TaskStore:
 
         self.conn.execute(
             "UPDATE tasks SET status=?, error=?, updated_at=? WHERE task_id=?",
-            (status, error, datetime.utcnow().isoformat(), task_id)
+            (status, error, datetime.now(timezone.utc).isoformat(), task_id),
         )
         self.conn.commit()
 
@@ -137,10 +145,7 @@ class TaskStore:
             dict: 任务信息字典
         """
 
-        cursor = self.conn.execute(
-            "SELECT * FROM tasks WHERE task_id=?",
-            (task_id,)
-        )
+        cursor = self.conn.execute("SELECT * FROM tasks WHERE task_id=?", (task_id,))
         row = cursor.fetchone()
         if not row:
             return None
@@ -159,7 +164,7 @@ class TaskStore:
             "playback_file_path": row[10],
             "started_at": row[11],
             "created_at": row[12],
-            "updated_at": row[13]
+            "updated_at": row[13],
         }
 
     def get_all_tasks(self):
@@ -174,21 +179,23 @@ class TaskStore:
 
         tasks = []
         for row in rows:
-            tasks.append({
-                "task_id": row[0],
-                "target_ip": row[1],
-                "weaving_pattern": row[2],
-                "engine": row[3],
-                "host": row[4],
-                "port": row[5],
-                "engine_id": row[6],
-                "path_name": row[7],
-                "status": row[8],
-                "playback_file_path": row[10],
-                "started_at": row[11],
-                "error": row[9],
-                "created_at": row[12],
-                "updated_at": row[13]
-            })
+            tasks.append(
+                {
+                    "task_id": row[0],
+                    "target_ip": row[1],
+                    "weaving_pattern": row[2],
+                    "engine": row[3],
+                    "host": row[4],
+                    "port": row[5],
+                    "engine_id": row[6],
+                    "path_name": row[7],
+                    "status": row[8],
+                    "playback_file_path": row[10],
+                    "started_at": row[11],
+                    "error": row[9],
+                    "created_at": row[12],
+                    "updated_at": row[13],
+                }
+            )
 
         return tasks

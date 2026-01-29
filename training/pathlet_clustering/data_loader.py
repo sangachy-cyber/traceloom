@@ -69,28 +69,25 @@ class DataLoader:
         profiles = []
 
         # 按trace_name和start_index分组
-        grouped = df.groupby(['trace_name', 'start_index'])
+        grouped = df.groupby(["trace_name", "start_index"])
 
         for (trace_name, start_index), group in grouped:
             # 提取观测数据
             observations = []
             for _, row in group.iterrows():
                 obs = Observation(
-                    delay_up=row['delay_up'],
-                    loss_up=row['loss_up'],
-                    bw_up=row['bw_up'],
-                    delay_down=row['delay_down'],
-                    loss_down=row['loss_down'],
-                    bw_down=row['bw_down']
+                    delay_up=row["delay_up"],
+                    loss_up=row["loss_up"],
+                    bw_up=row["bw_up"],
+                    delay_down=row["delay_down"],
+                    loss_down=row["loss_down"],
+                    bw_down=row["bw_down"],
                 )
                 observations.append(obs)
 
             # 创建RawProfile对象
             profile = RawProfile(
-                trace_name=trace_name,
-                start_index=start_index,
-                observations=observations,
-                is_valid=True
+                trace_name=trace_name, start_index=start_index, observations=observations, is_valid=True
             )
             profiles.append(profile)
 
@@ -160,15 +157,15 @@ class DataLoader:
         for profile in profiles:
             for i, obs in enumerate(profile.observations):
                 row = {
-                    'trace_name': profile.trace_name,
-                    'start_index': profile.start_index,
-                    'sample_index': i,
-                    'delay_up': obs.delay_up,
-                    'loss_up': obs.loss_up,
-                    'bw_up': obs.bw_up,
-                    'delay_down': obs.delay_down,
-                    'loss_down': obs.loss_down,
-                    'bw_down': obs.bw_down
+                    "trace_name": profile.trace_name,
+                    "start_index": profile.start_index,
+                    "sample_index": i,
+                    "delay_up": obs.delay_up,
+                    "loss_up": obs.loss_up,
+                    "bw_up": obs.bw_up,
+                    "delay_down": obs.delay_down,
+                    "loss_down": obs.loss_down,
+                    "bw_down": obs.bw_down,
                 }
                 data.append(row)
 

@@ -10,10 +10,4 @@ from training.pathlet_clustering.pathlet_builder import PathletBuilder
 from training.pathlet_clustering.preprocessor import Preprocessor
 from training.pathlet_clustering.visualization import TSNEVisualizer
 
-__all__ = [
-    "DataLoader",
-    "GMMClusterer",
-    "TSNEVisualizer",
-    "PathletBuilder",
-    "Preprocessor"
-]
+__all__ = ["DataLoader", "GMMClusterer", "TSNEVisualizer", "PathletBuilder", "Preprocessor"]

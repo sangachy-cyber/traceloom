@@ -9,19 +9,23 @@ import numpy as np
 
 from traceloom.core.exceptions import SplicingError
 from traceloom.core.logger import logger
+from traceloom.domain.pathlet import BodyObservations, Observation
 from traceloom.domain.raw_trace import RawTraceSegment as RawProfile
-from traceloom.storage.pathlet_storage import ContextData, ContinuationData, PathletStatistics
+from traceloom.storage.pathlet_storage import PathletStatistics
 
 
 # 为缺少的类创建简单的替代实现
 class PathletInfo:
     """径元信息"""
+
     def __init__(self, pathlet_id, state_id):
         self.pathlet_id = pathlet_id
         self.state_id = state_id
 
+
 class ProfileSequence:
     """剖面序列"""
+
     def __init__(self, sequence_id, profiles, metadata=None):
         self.sequence_id = sequence_id
         self.profiles = profiles
@@ -189,7 +193,7 @@ class Reweaver:
 
         return interpolated
 
-    def _extract_profile_segment(self, profile: RawProfile, start_offset: int) -> Tuple[ContextData, PathletStatistics]:
+    def _extract_profile_segment(self, profile: RawProfile, start_offset: int) -> Tuple[BodyObservations, PathletStatistics]:
         """从profile中提取从start_offset开始的100个点作为新的上下文数据
 
         参数:
@@ -226,12 +230,21 @@ class Reweaver:
             bw_down_max=np.max(bw_down),
         )
 
-        # 创建新的ContextData
-        ctx_data = ContextData(
-            delay_up=delay_up, loss_up=loss_up, bw_up=bw_up, delay_down=delay_down, loss_down=loss_down, bw_down=bw_down
-        )
+        # 创建新的BodyObservations
+        observations = []
+        for i in range(len(delay_up)):
+            obs = Observation(
+                delay_up=delay_up[i],
+                loss_up=loss_up[i],
+                bw_up=bw_up[i],
+                delay_down=delay_down[i],
+                loss_down=loss_down[i],
+                bw_down=bw_down[i]
+            )
+            observations.append(obs)
+        body = BodyObservations(observations=observations)
 
-        return ctx_data, ctx_values
+        return body, ctx_values
 
     def _generate_psd_noise(self, original_data: np.ndarray, length: int) -> np.ndarray:
         """生成符合原PSD的高频噪声，保留Jitter
@@ -360,12 +373,12 @@ class Reweaver:
         # 简化验证，只检查基本结构
         if isinstance(profile, dict):
             # 处理字典类型的输入
-            if profile.get('ctx_10s') is None or profile.get('cont_1s') is None:
+            if profile.get("ctx_10s") is None or profile.get("cont_1s") is None:
                 raise ValueError("网络剖面缺少必要数据")
             # 检查上下文数据长度
-            if len(profile['ctx_10s'].delay_up) != 100:
+            if len(profile["ctx_10s"].delay_up) != 100:
                 raise ValueError(f"上下文数据长度无效 {len(profile['ctx_10s'].delay_up)}")
-            if len(profile['cont_1s'].delay_up) != 10:
+            if len(profile["cont_1s"].delay_up) != 10:
                 raise ValueError(f"延续数据长度无效: {len(profile['cont_1s'].delay_up)}")
         else:
             # 处理RawProfile对象类型的输入
@@ -377,7 +390,9 @@ class Reweaver:
             if len(profile.cont_1s.delay_up) != 10:
                 raise ValueError(f"延续数据长度无效: {len(profile.cont_1s.delay_up)}")
 
-    def blend_tails(self, profile1: Union[Dict, RawProfile], profile2: Union[Dict, RawProfile]) -> Tuple[List[float], List[float], List[float], List[float], List[float], List[float]]:
+    def blend_tails(
+        self, profile1: Union[Dict, RawProfile], profile2: Union[Dict, RawProfile]
+    ) -> Tuple[List[float], List[float], List[float], List[float], List[float], List[float]]:
         """融合两个网络剖面的尾部
 
         参数:
@@ -388,34 +403,26 @@ class Reweaver:
             Tuple[List[float], List[float], List[float], List[float], List[float], List[float]]: 融合后的六维数据
         """
         # 从第一个剖面获取尾部数据
-        tail1 = profile1['cont_1s'] if isinstance(profile1, dict) else profile1.cont_1s
+        tail1 = profile1["cont_1s"] if isinstance(profile1, dict) else profile1.cont_1s
 
         # 从第二个剖面获取头部数据
-        head2 = profile2['ctx_10s'] if isinstance(profile2, dict) else profile2.ctx_10s
+        head2 = profile2["ctx_10s"] if isinstance(profile2, dict) else profile2.ctx_10s
 
         # 执行Hermite插值
-        delay_up_blended = self._hermite_interpolation(
-            tail1.delay_up, head2.delay_up[:self.transition_steps]
-        )
-        loss_up_blended = self._hermite_interpolation(
-            tail1.loss_up, head2.loss_up[:self.transition_steps]
-        )
-        bw_up_blended = self._hermite_interpolation(
-            tail1.bw_up, head2.bw_up[:self.transition_steps]
-        )
-        delay_down_blended = self._hermite_interpolation(
-            tail1.delay_down, head2.delay_down[:self.transition_steps]
-        )
-        loss_down_blended = self._hermite_interpolation(
-            tail1.loss_down, head2.loss_down[:self.transition_steps]
-        )
-        bw_down_blended = self._hermite_interpolation(
-            tail1.bw_down, head2.bw_down[:self.transition_steps]
-        )
+        delay_up_blended = self._hermite_interpolation(tail1.delay_up, head2.delay_up[: self.transition_steps])
+        loss_up_blended = self._hermite_interpolation(tail1.loss_up, head2.loss_up[: self.transition_steps])
+        bw_up_blended = self._hermite_interpolation(tail1.bw_up, head2.bw_up[: self.transition_steps])
+        delay_down_blended = self._hermite_interpolation(tail1.delay_down, head2.delay_down[: self.transition_steps])
+        loss_down_blended = self._hermite_interpolation(tail1.loss_down, head2.loss_down[: self.transition_steps])
+        bw_down_blended = self._hermite_interpolation(tail1.bw_down, head2.bw_down[: self.transition_steps])
 
         return (
-            delay_up_blended, loss_up_blended, bw_up_blended,
-            delay_down_blended, loss_down_blended, bw_down_blended
+            delay_up_blended,
+            loss_up_blended,
+            bw_up_blended,
+            delay_down_blended,
+            loss_down_blended,
+            bw_down_blended,
         )
 
     def _hermite_interpolation(self, tail_data: List[float], head_data: List[float]) -> List[float]:
@@ -443,9 +450,9 @@ class Reweaver:
         blended = []
         for i in range(len(tail_data)):
             t = i / len(tail_data)
-            h00 = (1 + 2*t) * (1 - t)**2
-            h10 = t * (1 - t)**2
-            h01 = t**2 * (3 - 2*t)
+            h00 = (1 + 2 * t) * (1 - t) ** 2
+            h10 = t * (1 - t) ** 2
+            h01 = t**2 * (3 - 2 * t)
             h11 = t**2 * (t - 1)
             blended_value = h00 * tail_data[i] + h10 * tail_deriv[i] + h01 * head_data[i] + h11 * head_deriv[i]
             blended.append(blended_value)
@@ -471,11 +478,13 @@ class Reweaver:
             elif i == len(data) - 1:
                 derivatives.append(data[-1] - data[-2])
             else:
-                derivatives.append((data[i+1] - data[i-1]) / 2)
+                derivatives.append((data[i + 1] - data[i - 1]) / 2)
 
         return derivatives
 
-    def validate_blend(self, blended_data: Tuple[List[float], List[float], List[float], List[float], List[float], List[float]]) -> bool:
+    def validate_blend(
+        self, blended_data: Tuple[List[float], List[float], List[float], List[float], List[float], List[float]]
+    ) -> bool:
         """验证融合结果的有效性
 
         参数:
@@ -492,7 +501,9 @@ class Reweaver:
 
         return True
 
-    def _generate_transition_profiles(self, start_profile: Union[Dict, RawProfile], end_profile: Union[Dict, RawProfile]) -> List[Union[Dict, RawProfile]]:
+    def _generate_transition_profiles(
+        self, start_profile: Union[Dict, RawProfile], end_profile: Union[Dict, RawProfile]
+    ) -> List[Union[Dict, RawProfile]]:
         """生成过渡网络剖面
 
         参数:
@@ -506,20 +517,20 @@ class Reweaver:
 
         # 获取起始和结束剖面的数据
         if isinstance(start_profile, dict):
-            start_ctx_10s = start_profile.get('ctx_10s')
-            start_trace_name = start_profile.get('trace_name', 'unknown')
-            start_index = start_profile.get('start_index', 0)
+            start_ctx_10s = start_profile.get("ctx_10s")
+            start_trace_name = start_profile.get("trace_name", "unknown")
+            start_index = start_profile.get("start_index", 0)
         else:
             start_ctx_10s = start_profile.ctx_10s
-            start_trace_name = getattr(start_profile, 'trace_name', 'unknown')
-            start_index = getattr(start_profile, 'start_index', 0)
+            start_trace_name = getattr(start_profile, "trace_name", "unknown")
+            start_index = getattr(start_profile, "start_index", 0)
 
         if isinstance(end_profile, dict):
-            end_ctx_10s = end_profile.get('ctx_10s')
-            end_trace_name = end_profile.get('trace_name', 'unknown')
+            end_ctx_10s = end_profile.get("ctx_10s")
+            end_trace_name = end_profile.get("trace_name", "unknown")
         else:
             end_ctx_10s = end_profile.ctx_10s
-            end_trace_name = getattr(end_profile, 'trace_name', 'unknown')
+            end_trace_name = getattr(end_profile, "trace_name", "unknown")
 
         # 使用平均延迟作为代表值进行插值
         start_rtt = sum(start_ctx_10s.delay_up) / len(start_ctx_10s.delay_up)
@@ -537,9 +548,9 @@ class Reweaver:
 
             # 创建过渡剖面
             transition_profile = {
-                'trace_name': f"transition_{start_trace_name}_to_{end_trace_name}",
-                'start_index': start_index + step,
-                'ctx_10s': ContextData(
+                "trace_name": f"transition_{start_trace_name}_to_{end_trace_name}",
+                "start_index": start_index + step,
+                "ctx_10s": ContextData(
                     delay_up=[rtt] * 100,
                     loss_up=[loss_rate] * 100,
                     bw_up=[bandwidth] * 100,
@@ -547,7 +558,7 @@ class Reweaver:
                     loss_down=[loss_rate] * 100,
                     bw_down=[bandwidth] * 100,
                 ),
-                'cont_1s': ContinuationData(
+                "cont_1s": ContinuationData(
                     delay_up=[rtt] * 10,
                     loss_up=[loss_rate] * 10,
                     bw_up=[bandwidth] * 10,
@@ -555,7 +566,7 @@ class Reweaver:
                     loss_down=[loss_rate] * 10,
                     bw_down=[bandwidth] * 10,
                 ),
-                'ctx_values': PathletStatistics(
+                "ctx_values": PathletStatistics(
                     delay_up_mean=rtt,
                     delay_up_std=0.0,
                     delay_down_mean=rtt,
@@ -571,7 +582,6 @@ class Reweaver:
                 ),
             }
 
-
             # 验证剖面
             self._validate_profile(transition_profile)
 
@@ -579,7 +589,9 @@ class Reweaver:
 
         return transition_profiles
 
-    def splice(self, profile_list1: List[Union[Dict, RawProfile]], profile_list2: List[Union[Dict, RawProfile]]) -> List[Union[Dict, RawProfile]]:
+    def splice(
+        self, profile_list1: List[Union[Dict, RawProfile]], profile_list2: List[Union[Dict, RawProfile]]
+    ) -> List[Union[Dict, RawProfile]]:
         """拼接两个网络剖面序列，实现动态对齐和Hermite插值
 
         示例:
@@ -756,11 +768,7 @@ class Reweaver:
             },
         )
 
-    def generate_trace(
-        self,
-        pathlet_sequence: List[PathletInfo],
-        pathlet_storage: any
-    ) -> List[List[float]]:
+    def generate_trace(self, pathlet_sequence: List[PathletInfo], pathlet_storage: any) -> List[List[float]]:
         """生成合成轨迹
 
         根据径元序列生成6列HoloWAN格式的合成轨迹数据
@@ -840,17 +848,19 @@ class Reweaver:
         """从单个径元生成轨迹数据"""
         trace_data = []
         # 获取上下文数据
-        ctx_10s = profile.get('ctx_10s') if isinstance(profile, dict) else profile.ctx_10s
+        ctx_10s = profile.get("ctx_10s") if isinstance(profile, dict) else profile.ctx_10s
 
         for i in range(100):
-            trace_data.append([
-                ctx_10s.delay_up[i],
-                ctx_10s.loss_up[i],
-                ctx_10s.bw_up[i],
-                ctx_10s.delay_down[i],
-                ctx_10s.loss_down[i],
-                ctx_10s.bw_down[i]
-            ])
+            trace_data.append(
+                [
+                    ctx_10s.delay_up[i],
+                    ctx_10s.loss_up[i],
+                    ctx_10s.bw_up[i],
+                    ctx_10s.delay_down[i],
+                    ctx_10s.loss_down[i],
+                    ctx_10s.bw_down[i],
+                ]
+            )
         return trace_data
 
     def _splice_multiple_profiles(self, all_profiles: List) -> List:
@@ -863,7 +873,11 @@ class Reweaver:
         seen_profile_ids = set()
         for profile in all_profiles:
             # 使用trace_name作为唯一标识
-            profile_id = profile.get('trace_name') if isinstance(profile, dict) else getattr(profile, 'trace_name', str(id(profile)))
+            profile_id = (
+                profile.get("trace_name")
+                if isinstance(profile, dict)
+                else getattr(profile, "trace_name", str(id(profile)))
+            )
             if profile_id not in seen_profile_ids:
                 seen_profile_ids.add(profile_id)
                 unique_profiles.append(profile)
@@ -893,15 +907,17 @@ class Reweaver:
         trace_data = []
         for profile in profiles:
             # 获取上下文数据
-            ctx_10s = profile.get('ctx_10s') if isinstance(profile, dict) else profile.ctx_10s
+            ctx_10s = profile.get("ctx_10s") if isinstance(profile, dict) else profile.ctx_10s
 
             for i in range(100):
-                trace_data.append([
-                    ctx_10s.delay_up[i],
-                    ctx_10s.loss_up[i],
-                    ctx_10s.bw_up[i],
-                    ctx_10s.delay_down[i],
-                    ctx_10s.loss_down[i],
-                    ctx_10s.bw_down[i]
-                ])
+                trace_data.append(
+                    [
+                        ctx_10s.delay_up[i],
+                        ctx_10s.loss_up[i],
+                        ctx_10s.bw_up[i],
+                        ctx_10s.delay_down[i],
+                        ctx_10s.loss_down[i],
+                        ctx_10s.bw_down[i],
+                    ]
+                )
         return trace_data

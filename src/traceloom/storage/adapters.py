@@ -8,8 +8,7 @@ from typing import Dict, List, Tuple
 
 import pandas as pd
 
-from traceloom.domain.pathlet import BodyObservations, Observation, Pathlet, TailObservations
-from traceloom.domain.raw_trace import RawTraceSegment
+from traceloom.domain.pathlet import BodyObservations, Observation, Pathlet, PathletMeta, TailObservations
 
 
 class PathletStorageAdapter:
@@ -22,7 +21,7 @@ class PathletStorageAdapter:
         adapter = PathletStorageAdapter()
 
         # 将 Pathlet 对象转换为存储结构
-        metadata_df, points_df = adapter.pathlets_to_storage(pathlets, raw_trace_segment_map)
+        metadata_df, points_df = adapter.pathlets_to_storage(pathlets, pathlet_meta_map)
 
         # 将存储结构转换为 Pathlet 对象
         pathlets = adapter.storage_to_pathlets(metadata_df, points_df)
@@ -30,13 +29,13 @@ class PathletStorageAdapter:
 
     @staticmethod
     def pathlets_to_storage(
-        pathlets: List[Pathlet], raw_trace_segment_map: Dict[str, RawTraceSegment]
+        pathlets: List[Pathlet], pathlet_meta_map: Dict[str, PathletMeta]
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """将 Pathlet 对象转换为存储结构
 
         参数:
             pathlets: Pathlet 列表
-            raw_trace_segment_map: 径元ID到RawTraceSegment的映射
+            pathlet_meta_map: 径元ID到PathletMeta的映射
 
         返回:
             Tuple[pd.DataFrame, pd.DataFrame]: 元数据和点数据的 DataFrame
@@ -45,16 +44,16 @@ class PathletStorageAdapter:
         unique_points = {}
 
         for pathlet in pathlets:
-            segment = raw_trace_segment_map[pathlet.pathlet_id]
-            trace_name = segment.trace_name
-            start_index = segment.start_index
+            meta = pathlet_meta_map[pathlet.pathlet_id]
+            trace_name = meta.trace_name
+            start_index = meta.start_index
             state_id = pathlet.state_label.state_id if pathlet.state_label else -1
 
             # 提取元数据
             metadata.append(
                 {
                     "pathlet_id": pathlet.pathlet_id,
-                    "is_valid": segment.is_valid,
+                    "is_valid": meta.is_valid,
                     "state_id": state_id,
                     "trace_name": trace_name,
                     "start_index": start_index,
@@ -62,7 +61,7 @@ class PathletStorageAdapter:
             )
 
             # 提取点数据（去重处理）
-            for i, obs in enumerate(segment.observations):
+            for i, obs in enumerate(meta.observations):
                 trace_index = start_index + i
                 key = (trace_name, trace_index)
 
@@ -71,7 +70,7 @@ class PathletStorageAdapter:
                     unique_points[key] = {
                         "trace_name": trace_name,
                         "trace_index": trace_index,
-                        "pathlet_ids": [pathlet.pathlet_id],
+                        "containing_pathlet_ids": [pathlet.pathlet_id],
                         "delay_up": obs.delay_up,
                         "loss_up": obs.loss_up,
                         "bw_up": obs.bw_up,
@@ -81,8 +80,8 @@ class PathletStorageAdapter:
                     }
                 else:
                     # 已有观测点，添加径元ID
-                    if pathlet.pathlet_id not in unique_points[key]["pathlet_ids"]:
-                        unique_points[key]["pathlet_ids"].append(pathlet.pathlet_id)
+                    if pathlet.pathlet_id not in unique_points[key]["containing_pathlet_ids"]:
+                        unique_points[key]["containing_pathlet_ids"].append(pathlet.pathlet_id)
 
         return pd.DataFrame(metadata), pd.DataFrame(list(unique_points.values()))
 
@@ -101,8 +100,11 @@ class PathletStorageAdapter:
 
         # 按径元分组点数据
         points_by_pathlet = {}
+        # 兼容旧的字段名
+        id_column = "containing_pathlet_ids" if "containing_pathlet_ids" in points_df.columns else "pathlet_ids"
+        
         for _, row in points_df.iterrows():
-            for pathlet_id in row["pathlet_ids"]:
+            for pathlet_id in row[id_column]:
                 if pathlet_id not in points_by_pathlet:
                     points_by_pathlet[pathlet_id] = []
                 points_by_pathlet[pathlet_id].append(row)

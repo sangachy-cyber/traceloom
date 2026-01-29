@@ -17,7 +17,7 @@ client = TestClient(create_app())
 @pytest.fixture
 def mock_task_store():
     """模拟任务存储"""
-    with patch('traceloom.app.api.v1.endpoints.task_store') as mock:
+    with patch("traceloom.app.api.v1.endpoints.task_store") as mock:
         # 模拟创建任务
         mock.create_task.return_value = None
         # 模拟更新任务状态
@@ -26,6 +26,7 @@ def mock_task_store():
         mock.update_playback_file.return_value = None
         # 模拟更新开始时间
         mock.update_started_at.return_value = None
+
         # 模拟获取任务
         def mock_get_task(task_id):
             if task_id == "non_existent_task":
@@ -44,8 +45,9 @@ def mock_task_store():
                 "playback_file_path": f"/tmp/playback/{task_id}.txt",
                 "started_at": "2026-01-28T10:00:00Z",
                 "created_at": "2026-01-28T09:59:00Z",
-                "updated_at": "2026-01-28T10:00:00Z"
+                "updated_at": "2026-01-28T10:00:00Z",
             }
+
         mock.get_task.side_effect = mock_get_task
         yield mock
 
@@ -53,7 +55,7 @@ def mock_task_store():
 @pytest.fixture
 def mock_weaver_service():
     """模拟编织服务"""
-    with patch('traceloom.app.api.v1.endpoints.weaver_service') as mock:
+    with patch("traceloom.app.api.v1.endpoints.weaver_service") as mock:
         # 模拟执行任务
         mock.execute_task.return_value = None
         mock.execute_reweave.return_value = None
@@ -61,9 +63,11 @@ def mock_weaver_service():
         mock.execute_dream.return_value = None
         # 模拟取消任务
         mock.cancel_task.return_value = None
+
         # 模拟获取回放文件路径
         def mock_get_playback_file_path(task_id):
             return f"/tmp/playback/{task_id}.txt"
+
         mock.get_playback_file_path.side_effect = mock_get_playback_file_path
         # 模拟清理过期文件
         mock.cleanup_expired_files.return_value = None
@@ -73,7 +77,7 @@ def mock_weaver_service():
 @pytest.fixture
 def mock_path_exists():
     """模拟文件存在"""
-    with patch('pathlib.Path.exists') as mock:
+    with patch("pathlib.Path.exists") as mock:
         mock.return_value = True
         yield mock
 
@@ -84,12 +88,7 @@ def sample_weave_request():
     return {
         "target_ip": "10.10.10.10",
         "weaving_pattern": "s0x2 -> s9x1",
-        "impairment_device": {
-            "host": "160.100.15.195",
-            "port": 8080,
-            "engine_id": 1,
-            "path_name": "MyLink"
-        }
+        "impairment_device": {"host": "160.100.15.195", "port": 8080, "engine_id": 1, "path_name": "MyLink"},
     }
 
 
@@ -126,9 +125,12 @@ def test_weave_endpoint(mock_task_store, mock_weaver_service, sample_weave_reque
     assert response.json()["status"] == "completed"
 
     # 测试 GET /api/v1/weave/{task_id}/playback
-    with patch('pathlib.Path.exists') as mock_exists, \
-         patch('traceloom.app.api.v1.endpoints.FileResponse') as mock_file_response:
+    with (
+        patch("pathlib.Path.exists") as mock_exists,
+        patch("traceloom.app.api.v1.endpoints.FileResponse") as mock_file_response,
+    ):
         from fastapi import Response
+
         mock_exists.return_value = True
         mock_file_response.return_value = Response(status_code=200)
         response = client.get(f"/api/v1/weave/{task_id}/playback")
@@ -160,9 +162,12 @@ def test_reweave_endpoint(mock_task_store, mock_weaver_service, sample_weave_req
     assert response.json()["status"] == "completed"
 
     # 测试 GET /api/v1/reweave/{task_id}/playback
-    with patch('pathlib.Path.exists') as mock_exists, \
-         patch('traceloom.app.api.v1.endpoints.FileResponse') as mock_file_response:
+    with (
+        patch("pathlib.Path.exists") as mock_exists,
+        patch("traceloom.app.api.v1.endpoints.FileResponse") as mock_file_response,
+    ):
         from fastapi import Response
+
         mock_exists.return_value = True
         mock_file_response.return_value = Response(status_code=200)
         response = client.get(f"/api/v1/reweave/{task_id}/playback")
@@ -194,9 +199,12 @@ def test_stitch_endpoint(mock_task_store, mock_weaver_service, sample_weave_requ
     assert response.json()["status"] == "completed"
 
     # 测试 GET /api/v1/stitch/{task_id}/playback
-    with patch('pathlib.Path.exists') as mock_exists, \
-         patch('traceloom.app.api.v1.endpoints.FileResponse') as mock_file_response:
+    with (
+        patch("pathlib.Path.exists") as mock_exists,
+        patch("traceloom.app.api.v1.endpoints.FileResponse") as mock_file_response,
+    ):
         from fastapi import Response
+
         mock_exists.return_value = True
         mock_file_response.return_value = Response(status_code=200)
         response = client.get(f"/api/v1/stitch/{task_id}/playback")
@@ -228,9 +236,12 @@ def test_dream_endpoint(mock_task_store, mock_weaver_service, sample_weave_reque
     assert response.json()["status"] == "completed"
 
     # 测试 GET /api/v1/dream/{task_id}/playback
-    with patch('pathlib.Path.exists') as mock_exists, \
-         patch('traceloom.app.api.v1.endpoints.FileResponse') as mock_file_response:
+    with (
+        patch("pathlib.Path.exists") as mock_exists,
+        patch("traceloom.app.api.v1.endpoints.FileResponse") as mock_file_response,
+    ):
         from fastapi import Response
+
         mock_exists.return_value = True
         mock_file_response.return_value = Response(status_code=200)
         response = client.get(f"/api/v1/dream/{task_id}/playback")
@@ -248,7 +259,7 @@ def test_error_handling(mock_task_store, sample_weave_request):
     assert "detail" in response.json()
 
     # 测试回放文件不存在
-    with patch('pathlib.Path.exists') as mock_exists:
+    with patch("pathlib.Path.exists") as mock_exists:
         mock_exists.return_value = False
         response = client.get(f"/api/v1/weave/{task_id}/playback")
         assert response.status_code == 404

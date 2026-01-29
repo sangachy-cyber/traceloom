@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional, Union
 from traceloom.core.exceptions import StateMappingError, ValidationError
 from traceloom.core.logger import logger
 from traceloom.domain.pattern import Pattern, PatternParser
-from traceloom.io.adapters.holowan import HoloWANDataPoint, HoloWANDirection, HoloWANTrace
+from traceloom.io.adapters.holowan import HoloWANPoint, HoloWANDirection, HoloWANTrace
 from traceloom.storage.pathlet_storage import PathletStorage
 from traceloom.weaving.engines.dreamer import Dreamer
 from traceloom.weaving.engines.reweaver.reweaver import Reweaver
@@ -98,8 +98,9 @@ class WeavingEngine:
         self.pattern_parser = PatternParser()
         """织样解析器实例"""
 
-    def weave(self, input_data: Union[str, List[Dict[str, Any]], Pattern, Path],
-               mode: str = "reweave") -> Dict[str, Any]:
+    def weave(
+        self, input_data: Union[str, List[Dict[str, Any]], Pattern, Path], mode: str = "reweave"
+    ) -> Dict[str, Any]:
         """织径入口函数，根据模式调度不同的织径引擎
 
         织径入口函数，根据指定的模式调度不同的织径引擎，处理输入数据并生成织径结果。
@@ -135,7 +136,9 @@ class WeavingEngine:
         # 验证输入类型
         valid_types = (str, list, Pattern, Path)
         if not isinstance(input_data, valid_types):
-            raise ValidationError(f"无效的输入类型：{type(input_data).__name__}，支持的类型有：str, list, Pattern, Path")
+            raise ValidationError(
+                f"无效的输入类型：{type(input_data).__name__}，支持的类型有：str, list, Pattern, Path"
+            )
 
         # 根据模式不同，对输入数据进行不同处理
         if mode == "reweave":
@@ -189,12 +192,12 @@ class WeavingEngine:
         if isinstance(input_data, Path):
             # 输入是文件路径
             file_path = input_data
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 input_data = f.read()
         elif isinstance(input_data, str) and len(input_data) < 1000 and Path(input_data).exists():
             # 输入是短字符串且是文件路径
             file_path = Path(input_data)
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 input_data = f.read()
         else:
             # 输入是文件内容
@@ -213,7 +216,7 @@ class WeavingEngine:
             "path_id": f"tl_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             "duration_sec": 20,
             "state_sequence": "reweave_from_holowan",
-            "trace_data": trace_data
+            "trace_data": trace_data,
         }
 
         return result
@@ -240,7 +243,9 @@ class WeavingEngine:
         state_sequence = [state_id for state_id, _ in state_duration_sequence]
 
         # 1. 执行绣织
-        profiles = self.stitcher.stitch(state_sequence=state_sequence, duration=sum(duration for _, duration in state_duration_sequence))
+        profiles = self.stitcher.stitch(
+            state_sequence=state_sequence, duration=sum(duration for _, duration in state_duration_sequence)
+        )
 
         # 2. 生成输出结果
         trace_data = self._profiles_to_trace_data(profiles)
@@ -305,7 +310,7 @@ class WeavingEngine:
             "path_id": path_id,
             "duration_sec": duration_sec,
             "state_sequence": pattern.to_string(),
-            "trace_data": trace_data
+            "trace_data": trace_data,
         }
 
         return result
@@ -328,41 +333,40 @@ class WeavingEngine:
         trace_data = []
         for profile in profiles:
             # 检查profile对象的属性，处理不同的属性结构
-            if hasattr(profile, 'ctx_10s') and hasattr(profile, 'cont_1s'):
+            if hasattr(profile, "ctx_10s") and hasattr(profile, "cont_1s"):
                 # 提取10秒主干数据
                 ctx_data = profile.ctx_10s
                 for i in range(len(ctx_data.delay_up)):
-                    trace_data.append([
-                        ctx_data.delay_up[i],
-                        ctx_data.loss_up[i],
-                        ctx_data.bw_up[i],
-                        ctx_data.delay_down[i],
-                        ctx_data.loss_down[i],
-                        ctx_data.bw_down[i]
-                    ])
+                    trace_data.append(
+                        [
+                            ctx_data.delay_up[i],
+                            ctx_data.loss_up[i],
+                            ctx_data.bw_up[i],
+                            ctx_data.delay_down[i],
+                            ctx_data.loss_down[i],
+                            ctx_data.bw_down[i],
+                        ]
+                    )
 
                 # 提取1秒融尾数据
                 cont_data = profile.cont_1s
                 for i in range(len(cont_data.delay_up)):
-                    trace_data.append([
-                        cont_data.delay_up[i],
-                        cont_data.loss_up[i],
-                        cont_data.bw_up[i],
-                        cont_data.delay_down[i],
-                        cont_data.loss_down[i],
-                        cont_data.bw_down[i]
-                    ])
-            elif hasattr(profile, 'observations'):
+                    trace_data.append(
+                        [
+                            cont_data.delay_up[i],
+                            cont_data.loss_up[i],
+                            cont_data.bw_up[i],
+                            cont_data.delay_down[i],
+                            cont_data.loss_down[i],
+                            cont_data.bw_down[i],
+                        ]
+                    )
+            elif hasattr(profile, "observations"):
                 # 处理RawProfile对象的observations属性
                 for obs in profile.observations:
-                    trace_data.append([
-                        obs.delay_up,
-                        obs.loss_up,
-                        obs.bw_up,
-                        obs.delay_down,
-                        obs.loss_down,
-                        obs.bw_down
-                    ])
+                    trace_data.append(
+                        [obs.delay_up, obs.loss_up, obs.bw_up, obs.delay_down, obs.loss_down, obs.bw_down]
+                    )
 
         return trace_data
 
@@ -386,25 +390,20 @@ class WeavingEngine:
         holowan_trace = HoloWANTrace()
 
         # 添加数据点
+        points = []
         for data_point in result["trace_data"]:
             if len(data_point) >= 6:
                 # 创建HoloWANDirection对象
-                up = HoloWANDirection(
-                    delay=data_point[0],
-                    loss=data_point[1],
-                    bw=data_point[2]
-                )
-                down = HoloWANDirection(
-                    delay=data_point[3],
-                    loss=data_point[4],
-                    bw=data_point[5]
-                )
-                # 创建HoloWANDataPoint对象并添加到列表
-                holo_data_point = HoloWANDataPoint(up=up, down=down)
-                holowan_trace.data_points.append(holo_data_point)
+                up = HoloWANDirection(delay=data_point[0], loss=data_point[1], bw=data_point[2])
+                down = HoloWANDirection(delay=data_point[3], loss=data_point[4], bw=data_point[5])
+                # 创建HoloWANPoint对象并添加到列表
+                holo_point = HoloWANPoint(up=up, down=down)
+                points.append(holo_point)
+        
+        # 设置轨迹点
+        holowan_trace.points = points
 
         # 写入文件
-        HoloWANTrace.save(output_path, holowan_trace)
+        holowan_trace.dump(output_path)
 
         logger.info(f"织径结果已保存到：{output_path}")
-

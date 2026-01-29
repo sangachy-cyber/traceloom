@@ -28,4 +28,3 @@ __all__ = [
     "generate_trace_report",
     "validate_trace_realism",
 ]
-

@@ -144,7 +144,7 @@ mv src/traceloom/io/observer.py src/traceloom/io/adapters/holowan_parser.py
 > **不合并！保持分离，但允许内部复用**
 
 ```python
-# src/traceloom/io/adapters/holowan.py
+# src/traceloom/io/adapters/_holowan.py
 from .holowan_parser import HoloWANParser
 from typing import List
 from traceloom.domain.pathlet import Observation

@@ -20,18 +20,9 @@ class TestStateGMM:
         """设置测试环境"""
         self.model = StateGMM()
         self.test_observations = [
-            Observation(
-                delay_up=10.0, loss_up=0.01, bw_up=100.0,
-                delay_down=12.0, loss_down=0.02, bw_down=120.0
-            ),
-            Observation(
-                delay_up=11.0, loss_up=0.01, bw_up=105.0,
-                delay_down=13.0, loss_down=0.02, bw_down=125.0
-            ),
-            Observation(
-                delay_up=12.0, loss_up=0.02, bw_up=110.0,
-                delay_down=14.0, loss_down=0.03, bw_down=130.0
-            )
+            Observation(delay_up=10.0, loss_up=0.01, bw_up=100.0, delay_down=12.0, loss_down=0.02, bw_down=120.0),
+            Observation(delay_up=11.0, loss_up=0.01, bw_up=105.0, delay_down=13.0, loss_down=0.02, bw_down=125.0),
+            Observation(delay_up=12.0, loss_up=0.02, bw_up=110.0, delay_down=14.0, loss_down=0.03, bw_down=130.0),
         ]
 
     def test_extract_features(self):
@@ -58,7 +49,7 @@ class TestStateGMM:
             self.model.load(non_existent_path)
 
         # 测试保存方法（现在模型在初始化时会自动创建 gmm 和 scaler 对象）
-        with tempfile.NamedTemporaryFile(suffix='.joblib', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".joblib", delete=False) as f:
             model_path = Path(f.name)
 
         try:

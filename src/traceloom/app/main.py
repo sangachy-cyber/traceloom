@@ -6,7 +6,11 @@
 import uvicorn
 
 from traceloom.app import create_app
-from traceloom.core.logger import logger
+
+# 先初始化日志
+from traceloom.core.logger import logger, setup_logger
+
+setup_logger()
 
 app = create_app()
 
@@ -17,4 +21,4 @@ if __name__ == "__main__":
         python -m traceloom.app.main
     """
     logger.info("启动 TraceLoom Web 服务...")
-    uvicorn.run("traceloom.app.main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
+    uvicorn.run("traceloom.app.main:app", host="0.0.0.0", port=8000, reload=True, log_level="debug")

@@ -6,61 +6,69 @@
 
 ### 核心数据结构层次
 
-#### ContextData
+#### BodyObservations
 
-10秒上下文数据类，存储原始的网络参数数据，未经过归一化处理。
-
-##### 构造函数
-
-```python
-ContextData(
-    delay_up: List[float],  # 原始上行时延 (ms), len=100
-    loss_up: List[float],  # 原始上行丢包率 (0-1), len=100
-    bw_up: List[float],  # 原始上行带宽 (Mbps), len=100
-    delay_down: List[float],  # 原始下行时延 (ms), len=100
-    loss_down: List[float],  # 原始下行丢包率 (0-1), len=100
-    bw_down: List[float]  # 原始下行带宽 (Mbps), len=100
-)
-```
-
-**参数**：
-- `delay_up`: 上行时延列表，长度为100
-- `loss_up`: 上行丢包率列表，长度为100，范围0-1
-- `bw_up`: 上行带宽列表，长度为100，单位Mbps
-- `delay_down`: 下行时延列表，长度为100
-- `loss_down`: 下行丢包率列表，长度为100，范围0-1
-- `bw_down`: 下行带宽列表，长度为100，单位Mbps
-
-**返回值**：
-- `ContextData`: 10秒上下文数据实例
-
-#### ContinuationData
-
-1秒延续数据类，存储原始的网络参数数据，未经过归一化处理。
+主体观测数据类，存储径元主体部分的网络参数数据，包含100个观测值（约10秒）。
 
 ##### 构造函数
 
 ```python
-ContinuationData(
-    delay_up: List[float],  # 原始上行时延 (ms), len=10
-    loss_up: List[float],  # 原始上行丢包率 (0-1), len=10
-    bw_up: List[float],  # 原始上行带宽 (Mbps), len=10
-    delay_down: List[float],  # 原始下行时延 (ms), len=10
-    loss_down: List[float],  # 原始下行丢包率 (0-1), len=10
-    bw_down: List[float]  # 原始下行带宽 (Mbps), len=10
+BodyObservations(
+    observations: List[Observation]  # 观测数据列表，长度为100
 )
 ```
 
 **参数**：
-- `delay_up`: 上行时延列表，长度为10
-- `loss_up`: 上行丢包率列表，长度为10，范围0-1
-- `bw_up`: 上行带宽列表，长度为10，单位Mbps
-- `delay_down`: 下行时延列表，长度为10
-- `loss_down`: 下行丢包率列表，长度为10，范围0-1
-- `bw_down`: 下行带宽列表，长度为10，单位Mbps
+- `observations`: 观测数据列表，长度为100，每个元素为Observation对象
 
 **返回值**：
-- `ContinuationData`: 1秒延续数据实例
+- `BodyObservations`: 主体观测数据实例
+
+#### TailObservations
+
+融尾观测数据类，存储径元融尾部分的网络参数数据，包含10个观测值（约1秒），用于径元之间的平滑过渡。
+
+##### 构造函数
+
+```python
+TailObservations(
+    observations: List[Observation]  # 观测数据列表，长度为10
+)
+```
+
+**参数**：
+- `observations`: 观测数据列表，长度为10，每个元素为Observation对象
+
+**返回值**：
+- `TailObservations`: 融尾观测数据实例
+
+#### Observation
+
+核心网络观测模型，存储单个时间点的网络参数数据。
+
+##### 构造函数
+
+```python
+Observation(
+    delay_up: float = 0.0,  # 上行延迟 (ms)
+    delay_down: float = 0.0,  # 下行延迟 (ms)
+    loss_up: float = 0.0,  # 上行丢包率
+    loss_down: float = 0.0,  # 下行丢包率
+    bw_up: float = 0.0,  # 上行带宽 (Mbps)
+    bw_down: float = 0.0  # 下行带宽 (Mbps)
+)
+```
+
+**参数**：
+- `delay_up`: 上行延迟 (ms)
+- `delay_down`: 下行延迟 (ms)
+- `loss_up`: 上行丢包率
+- `loss_down`: 下行丢包率
+- `bw_up`: 上行带宽 (Mbps)
+- `bw_down`: 下行带宽 (Mbps)
+
+**返回值**：
+- `Observation`: 网络观测数据实例
 
 #### ContextValues
 
@@ -112,8 +120,8 @@ ContextValues(
 RawProfile(
     trace_name: str,
     start_index: int,
-    ctx_10s: ContextData,
-    cont_1s: ContinuationData,
+    ctx_10s: BodyObservations,
+    cont_1s: TailObservations,
     ctx_values: ContextValues,
     is_valid: bool = True
 )
@@ -122,8 +130,8 @@ RawProfile(
 **参数**：
 - `trace_name`: 轨迹名称
 - `start_index`: 起始索引
-- `ctx_10s`: 10秒上下文数据
-- `cont_1s`: 1秒延续数据
+- `ctx_10s`: 10秒主体观测数据
+- `cont_1s`: 1秒融尾观测数据
 - `ctx_values`: 10秒时序序列统计值
 - `is_valid`: 是否有效，默认为True
 

@@ -33,7 +33,7 @@ def view_pathlets():
     # 查看前5个径元的详细信息
     logger.info("\n前5个径元的详细信息:")
     for i, pathlet in enumerate(pathlets[:5]):
-        logger.info(f"\n径元 {i+1}:")
+        logger.info(f"\n径元 {i + 1}:")
         logger.info(f"  ID: {pathlet.pathlet_id}")
         logger.info(f"  主体观测数据数量: {len(pathlet.body.observations)}")
         logger.info(f"  融尾观测数据数量: {len(pathlet.tail.observations)}")
@@ -46,7 +46,7 @@ def view_pathlets():
             logger.info(f"  是否有效: {raw_data['is_valid']}")
 
             # 查看统计信息
-            ctx_values = raw_data['ctx_values']
+            ctx_values = raw_data["ctx_values"]
             logger.info("  统计信息:")
             logger.info(f"    上行延迟均值: {ctx_values.delay_up_mean:.2f} ms")
             logger.info(f"    下行延迟均值: {ctx_values.delay_down_mean:.2f} ms")

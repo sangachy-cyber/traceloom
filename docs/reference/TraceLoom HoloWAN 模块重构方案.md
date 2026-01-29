@@ -50,7 +50,7 @@ TraceLoom/
 │       │   └── pathlet.py             # Observation, Pathlet, BodyObservations...
 │       │
 │       ├── formats/                   # ← 新增：外部格式规范
-│       │   └── holowan.py             # HoloWANDataPoint, HoloWANFile（纯格式）
+│       │   └── _holowan.py             # HoloWANDataPoint, HoloWANFile（纯格式）
 │       │
 │       ├── io/
 │       │   ├── adapters/              # ← 新增：格式适配器

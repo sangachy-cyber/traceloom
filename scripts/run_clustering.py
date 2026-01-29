@@ -29,7 +29,7 @@ def run(
     n_components: int = typer.Option(3, help="聚类数量"),
     confidence_threshold: float = typer.Option(0.85, help="置信度阈值，用于区分纯净态和混合态"),
     assign_test_states: bool = typer.Option(True, help="是否为测试集分配状态"),
-    visualize: bool = typer.Option(True, help="是否生成 t-SNE 可视化")
+    visualize: bool = typer.Option(True, help="是否生成 t-SNE 可视化"),
 ):
     """运行聚类流水线"""
     clustering_run(n_components, confidence_threshold, assign_test_states, visualize)

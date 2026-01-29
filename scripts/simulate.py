@@ -30,15 +30,11 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="splice",
         choices=["splice", "synthesize", "extrapolate"],
-        help="仿真场景类型 (默认: %(default)s)"
+        help="仿真场景类型 (默认: %(default)s)",
     )
 
     parser.add_argument(
-        "--output-format",
-        type=str,
-        default="hwan",
-        choices=["hwan", "csv"],
-        help="输出格式 (默认: %(default)s)"
+        "--output-format", type=str, default="hwan", choices=["hwan", "csv"], help="输出格式 (默认: %(default)s)"
     )
 
     parser.add_argument(
@@ -46,7 +42,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="日志级别 (默认: %(default)s)"
+        help="日志级别 (默认: %(default)s)",
     )
 
     return parser.parse_args()
@@ -69,11 +65,7 @@ def main() -> None:
     }
 
     # 运行仿真流水线
-    run(
-        scenario_type=args.scenario,
-        params=params,
-        output_format=args.output_format
-    )
+    run(scenario_type=args.scenario, params=params, output_format=args.output_format)
 
 
 if __name__ == "__main__":

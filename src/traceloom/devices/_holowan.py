@@ -46,7 +46,7 @@ class HoloWAN:
         playback: HoloWAN PlayBack 实例
     """
 
-    def __init__(self, host: str, port: str, engine_id: int = 1):
+    def __init__(self, host: str, port: str | int, engine_id: int = 1):
         """初始化 HoloWAN 设备管理器。
 
         参数:
@@ -55,7 +55,7 @@ class HoloWAN:
             engine_id: 引擎 ID，默认为 1
         """
         self.host = host
-        self.port = port
+        self.port = str(port)
         self.engine_id = engine_id
         self.engine = None
         self.playback = None

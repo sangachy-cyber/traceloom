@@ -19,6 +19,7 @@ from traceloom.weaving.engine import WeavingEngine
 # 创建默认的 WeavingEngine 实例
 weaving_engine = WeavingEngine()
 
+
 # 核心织径函数
 def reweave(input_file: str, output: str = "output.txt") -> dict:
     """重织：从真实 HoloWAN 文件提取并重组路径（【故径】）。
@@ -31,7 +32,7 @@ def reweave(input_file: str, output: str = "output.txt") -> dict:
         dict: 包含路径信息的字典
     """
     # 读取输入文件
-    with open(input_file, 'r') as f:
+    with open(input_file, "r") as f:
         content = f.read()
 
     # 使用 WeavingEngine 进行重织
@@ -41,6 +42,7 @@ def reweave(input_file: str, output: str = "output.txt") -> dict:
     weaving_engine.save_result(result, output)
 
     return result
+
 
 def embroider(input_pattern: str, output: str = "output.txt") -> dict:
     """绣织：按织样构造高质量路径（【质径】）。
@@ -62,6 +64,7 @@ def embroider(input_pattern: str, output: str = "output.txt") -> dict:
 
     return result
 
+
 def dream(input_pattern: str, output: str = "output.txt") -> dict:
     """广织：生成全新的虚拟路径（【幻径】）。
 
@@ -79,6 +82,7 @@ def dream(input_pattern: str, output: str = "output.txt") -> dict:
     weaving_engine.save_result(result, output)
 
     return result
+
 
 # 支持 traceloom 别名
 __all__ = ["reweave", "embroider", "dream", "Pattern", "WeavingEngine"]

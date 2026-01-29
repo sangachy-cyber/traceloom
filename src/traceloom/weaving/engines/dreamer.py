@@ -7,7 +7,8 @@
 from typing import List
 
 from traceloom.core.logger import logger
-from traceloom.storage.pathlet_storage import ContextData, ContinuationData, PathletStatistics
+from traceloom.domain.pathlet import BodyObservations, TailObservations
+from traceloom.storage.pathlet_storage import PathletStatistics
 
 
 class DreamerProfile:
@@ -16,15 +17,22 @@ class DreamerProfile:
     替代 training.profile.raw_profile.RawProfile，避免依赖 training 模块
     """
 
-    def __init__(self, trace_name: str, start_index: int, ctx_10s: ContextData,
-                 cont_1s: ContinuationData, ctx_values: PathletStatistics, is_valid: bool):
+    def __init__(
+        self,
+        trace_name: str,
+        start_index: int,
+        ctx_10s: BodyObservations,
+        cont_1s: TailObservations,
+        ctx_values: PathletStatistics,
+        is_valid: bool,
+    ):
         """初始化 DreamerProfile
 
         参数:
             trace_name: 轨迹名称
             start_index: 起始索引
-            ctx_10s: 上下文数据
-            cont_1s: 延续数据
+            ctx_10s: 主体观测数据
+            cont_1s: 融尾观测数据
             ctx_values: 上下文值
             is_valid: 是否有效
         """
@@ -80,7 +88,7 @@ class Dreamer:
                 bw_up=[base_bw] * 100,  # 上行带宽
                 delay_down=[base_delay] * 100,  # 下行延迟
                 loss_down=[base_loss] * 100,  # 下行丢包率
-                bw_down=[base_bw + 10] * 100  # 下行带宽
+                bw_down=[base_bw + 10] * 100,  # 下行带宽
             )
 
             # 创建延续数据（10个点）
@@ -90,7 +98,7 @@ class Dreamer:
                 bw_up=[base_bw] * 10,
                 delay_down=[base_delay] * 10,
                 loss_down=[base_loss] * 10,
-                bw_down=[base_bw + 10] * 10
+                bw_down=[base_bw + 10] * 10,
             )
 
             # 创建上下文值
@@ -106,7 +114,7 @@ class Dreamer:
                 bw_up_mean=base_bw,
                 bw_up_max=base_bw,
                 bw_down_mean=base_bw + 10,
-                bw_down_max=base_bw + 10
+                bw_down_max=base_bw + 10,
             )
 
             # 创建网络剖面
@@ -116,7 +124,7 @@ class Dreamer:
                 ctx_10s=ctx_10s,
                 cont_1s=cont_1s,
                 ctx_values=ctx_values,
-                is_valid=True
+                is_valid=True,
             )
 
             profiles.append(profile)
@@ -150,7 +158,7 @@ class Dreamer:
                     "bw_up": profile.ctx_10s.bw_up[i],
                     "delay_down": profile.ctx_10s.delay_down[i],
                     "loss_down": profile.ctx_10s.loss_down[i],
-                    "bw_down": profile.ctx_10s.bw_down[i]
+                    "bw_down": profile.ctx_10s.bw_down[i],
                 }
                 observations.append(obs)
 

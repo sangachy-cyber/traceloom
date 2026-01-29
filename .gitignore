@@ -125,6 +125,7 @@ data/before_label/
 data/after_labels/
 data/before_labels/
 data/processed/
+data/pathlets/
 data/*.txt
 
 # Trae documents directory

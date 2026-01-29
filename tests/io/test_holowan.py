@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""测试HoloWAN相关功能
-"""
+"""测试HoloWAN相关功能"""
 
 import sys
 from pathlib import Path
@@ -23,13 +22,12 @@ def test_holowan_file_basic():
 
     # 添加数据点
     from traceloom.io.adapters.holowan import HoloWANDataPoint, HoloWANDirection
+
     data_point1 = HoloWANDataPoint(
-        up=HoloWANDirection(delay=100.0, loss=0.1, bw=10.0),
-        down=HoloWANDirection(delay=95.0, loss=0.0, bw=12.0)
+        up=HoloWANDirection(delay=100.0, loss=0.1, bw=10.0), down=HoloWANDirection(delay=95.0, loss=0.0, bw=12.0)
     )
     data_point2 = HoloWANDataPoint(
-        up=HoloWANDirection(delay=105.0, loss=0.2, bw=9.5),
-        down=HoloWANDirection(delay=98.0, loss=0.1, bw=11.5)
+        up=HoloWANDirection(delay=105.0, loss=0.2, bw=9.5), down=HoloWANDirection(delay=98.0, loss=0.1, bw=11.5)
     )
     holowan_trace.data_points.append(data_point1)
     holowan_trace.data_points.append(data_point2)
@@ -83,17 +81,15 @@ def test_holowan_file_with_compact_state_str():
 
     # 添加数据点
     from traceloom.io.adapters.holowan import HoloWANDataPoint, HoloWANDirection
+
     data_point1 = HoloWANDataPoint(
-        up=HoloWANDirection(delay=100.0, loss=0.1, bw=10.0),
-        down=HoloWANDirection(delay=95.0, loss=0.0, bw=12.0)
+        up=HoloWANDirection(delay=100.0, loss=0.1, bw=10.0), down=HoloWANDirection(delay=95.0, loss=0.0, bw=12.0)
     )
     data_point2 = HoloWANDataPoint(
-        up=HoloWANDirection(delay=105.0, loss=0.2, bw=9.5),
-        down=HoloWANDirection(delay=98.0, loss=0.1, bw=11.5)
+        up=HoloWANDirection(delay=105.0, loss=0.2, bw=9.5), down=HoloWANDirection(delay=98.0, loss=0.1, bw=11.5)
     )
     data_point3 = HoloWANDataPoint(
-        up=HoloWANDirection(delay=110.0, loss=0.15, bw=9.8),
-        down=HoloWANDirection(delay=100.0, loss=0.05, bw=11.0)
+        up=HoloWANDirection(delay=110.0, loss=0.15, bw=9.8), down=HoloWANDirection(delay=100.0, loss=0.05, bw=11.0)
     )
     holowan_trace.data_points.append(data_point1)
     holowan_trace.data_points.append(data_point2)
@@ -124,15 +120,6 @@ def test_holowan_file_with_compact_state_str():
     assert not output_path.exists()
 
     print("HoloWANTrace基本功能测试完成！")
-
-
-
-
-
-
-
-
-
 
 
 def run_all_tests():

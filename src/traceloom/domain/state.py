@@ -106,23 +106,23 @@ class StateNamer:
             # 加载状态映射表
             namer.load_state_mapping(Path("state_mapping.json"))
         """
-        with open(state_mapping_path, 'r', encoding='utf-8') as f:
+        with open(state_mapping_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         # 提取状态映射
-        if 'states' in data:
-            for state in data['states']:
-                if 'state_id' in state and 'state_name' in state:
-                    self.state_mapping[state['state_id']] = state['state_name']
+        if "states" in data:
+            for state in data["states"]:
+                if "state_id" in state and "state_name" in state:
+                    self.state_mapping[state["state_id"]] = state["state_name"]
 
         # 保存元数据
         self.state_metadata = data
 
         # 更新组件数量和置信度阈值
-        if 'n_components' in data:
-            self.n_components = data['n_components']
-        if 'confidence_threshold' in data:
-            self.confidence_threshold = data['confidence_threshold']
+        if "n_components" in data:
+            self.n_components = data["n_components"]
+        if "confidence_threshold" in data:
+            self.confidence_threshold = data["confidence_threshold"]
 
     def _load_default_mapping(self) -> None:
         """加载默认状态映射
@@ -134,22 +134,18 @@ class StateNamer:
             # namer._load_default_mapping()
         """
         # 默认状态映射
-        self.state_mapping = {
-            0: "稳定",
-            1: "抖动",
-            2: "异常"
-        }
+        self.state_mapping = {0: "稳定", 1: "抖动", 2: "异常"}
 
         # 默认元数据
         self.state_metadata = {
-            'algorithm': 'gmm',
-            'n_components': 3,
-            'confidence_threshold': 0.85,
-            'states': [
-                {'state_id': 0, 'state_name': '稳定', 'type': 'pure'},
-                {'state_id': 1, 'state_name': '抖动', 'type': 'pure'},
-                {'state_id': 2, 'state_name': '异常', 'type': 'pure'}
-            ]
+            "algorithm": "gmm",
+            "n_components": 3,
+            "confidence_threshold": 0.85,
+            "states": [
+                {"state_id": 0, "state_name": "稳定", "type": "pure"},
+                {"state_id": 1, "state_name": "抖动", "type": "pure"},
+                {"state_id": 2, "state_name": "异常", "type": "pure"},
+            ],
         }
 
     def get_state_name(self, state_id: int) -> str:
@@ -220,13 +216,13 @@ class StateNamer:
         """
         if not probabilities:
             return {
-                'state_id': -1,
-                'state_name': '未知状态',
-                'is_pure': False,
-                'state_proba': 0.0,
-                'top2_state_ids': [-1, -1],
-                'top2_state_probas': [0.0, 0.0],
-                'base_state_id': -1
+                "state_id": -1,
+                "state_name": "未知状态",
+                "is_pure": False,
+                "state_proba": 0.0,
+                "top2_state_ids": [-1, -1],
+                "top2_state_probas": [0.0, 0.0],
+                "base_state_id": -1,
             }
 
         # 计算最高概率和对应的状态 ID
@@ -237,17 +233,19 @@ class StateNamer:
 
         # 获取前两个最高概率的状态
         sorted_indices = sorted(range(len(probabilities)), key=lambda i: probabilities[i], reverse=True)
-        top2_state_ids = sorted_indices[:2] if len(sorted_indices) >= 2 else sorted_indices + [-1] * (2 - len(sorted_indices))
+        top2_state_ids = (
+            sorted_indices[:2] if len(sorted_indices) >= 2 else sorted_indices + [-1] * (2 - len(sorted_indices))
+        )
         top2_state_probas = [probabilities[i] if i != -1 else 0.0 for i in top2_state_ids]
 
         return {
-            'state_id': state_id,
-            'state_name': state_name,
-            'is_pure': is_pure,
-            'state_proba': max_prob,
-            'top2_state_ids': top2_state_ids,
-            'top2_state_probas': top2_state_probas,
-            'base_state_id': state_id
+            "state_id": state_id,
+            "state_name": state_name,
+            "is_pure": is_pure,
+            "state_proba": max_prob,
+            "top2_state_ids": top2_state_ids,
+            "top2_state_probas": top2_state_probas,
+            "base_state_id": state_id,
         }
 
     def update_n_components(self, n_components: int) -> None:
@@ -262,7 +260,7 @@ class StateNamer:
             print(f"更新后的聚类数量: {namer.n_components}")  # 输出: 5
         """
         self.n_components = n_components
-        self.state_metadata['n_components'] = n_components
+        self.state_metadata["n_components"] = n_components
 
     def update_confidence_threshold(self, confidence_threshold: float) -> None:
         """更新置信度阈值
@@ -276,5 +274,4 @@ class StateNamer:
             print(f"更新后的置信度阈值: {namer.confidence_threshold}")  # 输出: 0.9
         """
         self.confidence_threshold = confidence_threshold
-        self.state_metadata['confidence_threshold'] = confidence_threshold
-
+        self.state_metadata["confidence_threshold"] = confidence_threshold

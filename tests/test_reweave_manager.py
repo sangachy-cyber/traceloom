@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-"""WeavingEngine类的测试用例
-"""
+"""WeavingEngine类的测试用例"""
 
 import tempfile
 from pathlib import Path
@@ -23,7 +22,7 @@ class TestWeavingEngine:
         self.temp_path = Path(self.temp_dir)
 
         # 模拟PathletStorage和GlobalSampler
-        with patch('traceloom.weaving.engine.PathletStorage') as mock_pathlet_storage:
+        with patch("traceloom.weaving.engine.PathletStorage") as mock_pathlet_storage:
             # 模拟PathletStorage实例
             mock_storage_instance = MagicMock()
             mock_storage_instance.load_pathlets.return_value = []
@@ -38,23 +37,24 @@ class TestWeavingEngine:
     def teardown_method(self):
         """清理测试环境"""
         import shutil
+
         shutil.rmtree(self.temp_dir)
 
     def test_init(self):
         """测试初始化"""
         assert self.weaving_engine is not None
-        assert hasattr(self.weaving_engine, 'pathlet_storage')
-        assert hasattr(self.weaving_engine, 'weaving_law')
-        assert hasattr(self.weaving_engine, 'global_sampler')
-        assert hasattr(self.weaving_engine, 'reweaver')
-        assert hasattr(self.weaving_engine, 'stitcher')
-        assert hasattr(self.weaving_engine, 'dreamer')
-        assert hasattr(self.weaving_engine, 'pattern_parser')
+        assert hasattr(self.weaving_engine, "pathlet_storage")
+        assert hasattr(self.weaving_engine, "weaving_law")
+        assert hasattr(self.weaving_engine, "global_sampler")
+        assert hasattr(self.weaving_engine, "reweaver")
+        assert hasattr(self.weaving_engine, "stitcher")
+        assert hasattr(self.weaving_engine, "dreamer")
+        assert hasattr(self.weaving_engine, "pattern_parser")
 
     def test_weave_string_input(self):
         """测试从字符串输入进行织径"""
         # 创建模拟的Reweaver
-        with patch.object(self.weaving_engine.reweaver, 'generate_trace') as mock_generate:
+        with patch.object(self.weaving_engine.reweaver, "generate_trace") as mock_generate:
             mock_generate.return_value = [[100.0, 0.01, 10.0, 100.0, 0.01, 10.0]] * 100
 
             # 测试重织功能
@@ -71,7 +71,7 @@ class TestWeavingEngine:
     def test_weave_list_input(self):
         """测试从列表输入进行织径"""
         # 创建模拟的Reweaver
-        with patch.object(self.weaving_engine.reweaver, 'generate_trace') as mock_generate:
+        with patch.object(self.weaving_engine.reweaver, "generate_trace") as mock_generate:
             mock_generate.return_value = [[100.0, 0.01, 10.0, 100.0, 0.01, 10.0]] * 100
 
             # 测试重织功能
@@ -88,7 +88,7 @@ class TestWeavingEngine:
     def test_weave_pattern_input(self):
         """测试从Pattern对象输入进行织径"""
         # 创建模拟的Reweaver
-        with patch.object(self.weaving_engine.reweaver, 'generate_trace') as mock_generate:
+        with patch.object(self.weaving_engine.reweaver, "generate_trace") as mock_generate:
             mock_generate.return_value = [[100.0, 0.01, 10.0, 100.0, 0.01, 10.0]] * 100
 
             # 测试重织功能
@@ -117,7 +117,7 @@ class TestWeavingEngine:
     def test_weave_splicing_error(self):
         """测试织径过程中发生拼接错误"""
         # 创建模拟的Reweaver，抛出SplicingError
-        with patch.object(self.weaving_engine.reweaver, 'generate_trace') as mock_generate:
+        with patch.object(self.weaving_engine.reweaver, "generate_trace") as mock_generate:
             mock_generate.side_effect = SplicingError("拼接失败")
 
             # 测试织径功能，应该捕获并重新抛出SplicingError
@@ -127,7 +127,7 @@ class TestWeavingEngine:
     def test_weave_stitch_mode(self):
         """测试绣织模式"""
         # 创建模拟的Stitcher
-        with patch.object(self.weaving_engine.stitcher, 'stitch') as mock_stitch:
+        with patch.object(self.weaving_engine.stitcher, "stitch") as mock_stitch:
             # 创建模拟的网络剖面
             mock_profile = MagicMock()
             mock_profile.ctx_10s.delay_up = [100.0] * 100
@@ -159,7 +159,7 @@ class TestWeavingEngine:
     def test_weave_dream_mode(self):
         """测试广织模式"""
         # 创建模拟的Dreamer
-        with patch.object(self.weaving_engine.dreamer, 'dream') as mock_dream:
+        with patch.object(self.weaving_engine.dreamer, "dream") as mock_dream:
             # 创建模拟的网络剖面
             mock_profile = MagicMock()
             mock_profile.ctx_10s.delay_up = [100.0] * 100
@@ -195,7 +195,7 @@ class TestWeavingEngine:
             "path_id": "test_path_id",
             "duration_sec": 50,
             "state_sequence": "s0x2 -> s1x3",
-            "trace_data": [[100.0, 0.01, 10.0, 100.0, 0.01, 10.0]] * 10
+            "trace_data": [[100.0, 0.01, 10.0, 100.0, 0.01, 10.0]] * 10,
         }
 
         # 创建临时文件
@@ -221,6 +221,7 @@ class TestWeavingEnginePerformance:
     def teardown_method(self):
         """清理测试环境"""
         import shutil
+
         shutil.rmtree(self.temp_dir)
 
     def test_pattern_parser_performance(self):
@@ -233,6 +234,7 @@ class TestWeavingEnginePerformance:
 
         # 第一次解析
         import time
+
         start_time = time.time()
         result1 = weaving_engine.pattern_parser.parse(pattern_str)
         time.time() - start_time

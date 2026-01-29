@@ -65,9 +65,7 @@ class GMMClusterer:
         self.confidence_threshold = confidence_threshold
         self.random_state = random_state
         self.model = StateGMM(
-            n_components=n_components,
-            confidence_threshold=confidence_threshold,
-            random_state=random_state
+            n_components=n_components, confidence_threshold=confidence_threshold, random_state=random_state
         )
 
     @staticmethod
@@ -187,7 +185,7 @@ class GMMClusterer:
         clusterer = cls(
             n_components=state_gmm.n_components,
             confidence_threshold=state_gmm.confidence_threshold,
-            random_state=state_gmm.random_state
+            random_state=state_gmm.random_state,
         )
         clusterer.model = state_gmm
 

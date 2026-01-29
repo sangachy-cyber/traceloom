@@ -15,7 +15,7 @@ from traceloom.validation.validator import (
     compare_traces,
     validate_trace_realism,
 )
-from traceloom.domain.raw_trace import RawTraceSegment, TraceContextValues
+from traceloom.domain.raw_trace import RawTraceSegment
 from traceloom.domain.pathlet import Observation
 
 
@@ -40,17 +40,7 @@ def single_profile():
             bw_down=12 - i * 0.5,
         )
         observations.append(obs)
-    
-    # 创建上下文值
-    ctx_values = TraceContextValues(
-        delay_up_mean=145.0,
-        loss_up_mean=0.055,
-        bw_up_mean=7.75,
-        delay_down_mean=155.0,
-        loss_down_mean=0.065,
-        bw_down_mean=9.75,
-    )
-    
+
     # 创建网络剖面
     profile = RawTraceSegment(
         trace_name="test_trace",
@@ -58,8 +48,7 @@ def single_profile():
         observations=observations,
         is_valid=True,
     )
-    profile.ctx_values = ctx_values
-    
+
     return [profile]
 
 
@@ -71,24 +60,14 @@ def extreme_profiles():
     for i in range(10):
         obs = Observation(
             delay_up=2000 + i * 100,  # 极端高延迟
-            loss_up=0.9 + i * 0.01,     # 极端高丢包率
-            bw_up=0.1 - i * 0.01,        # 极端低带宽
+            loss_up=0.9 + i * 0.01,  # 极端高丢包率
+            bw_up=0.1 - i * 0.01,  # 极端低带宽
             delay_down=2100 + i * 100,
             loss_down=0.95 + i * 0.005,
             bw_down=0.05 - i * 0.005,
         )
         observations.append(obs)
-    
-    # 创建上下文值
-    ctx_values = TraceContextValues(
-        delay_up_mean=2450.0,  # 极端高延迟
-        loss_up_mean=0.95,     # 极端高丢包率
-        bw_up_mean=0.055,       # 极端低带宽
-        delay_down_mean=2550.0,
-        loss_down_mean=0.975,
-        bw_down_mean=0.025,
-    )
-    
+
     # 创建网络剖面
     profiles = []
     for i in range(5):
@@ -98,9 +77,8 @@ def extreme_profiles():
             observations=observations,
             is_valid=True,
         )
-        profile.ctx_values = ctx_values
         profiles.append(profile)
-    
+
     return profiles
 
 
@@ -112,24 +90,14 @@ def boundary_profiles():
     for i in range(10):
         obs = Observation(
             delay_up=2000,  # 延迟刚好等于阈值
-            loss_up=1.0,     # 丢包率刚好等于最大值
-            bw_up=0.0,      # 带宽刚好等于最小值
+            loss_up=1.0,  # 丢包率刚好等于最大值
+            bw_up=0.0,  # 带宽刚好等于最小值
             delay_down=2000,
             loss_down=1.0,
             bw_down=0.0,
         )
         observations.append(obs)
-    
-    # 创建上下文值
-    ctx_values = TraceContextValues(
-        delay_up_mean=2000.0,  # 延迟刚好等于阈值
-        loss_up_mean=1.0,      # 丢包率刚好等于最大值
-        bw_up_mean=0.0,        # 带宽刚好等于最小值
-        delay_down_mean=2000.0,
-        loss_down_mean=1.0,
-        bw_down_mean=0.0,
-    )
-    
+
     # 创建网络剖面
     profile = RawTraceSegment(
         trace_name="boundary_trace",
@@ -137,8 +105,7 @@ def boundary_profiles():
         observations=observations,
         is_valid=True,
     )
-    profile.ctx_values = ctx_values
-    
+
     return [profile]
 
 

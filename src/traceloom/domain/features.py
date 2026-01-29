@@ -11,7 +11,7 @@ import numpy as np
 from .pathlet import Observation
 
 
-class FeatureExtractor:
+class GMMFeatureExtractor:
     """特征提取器.
 
     从观测数据列表中提取网络状态特征。
@@ -92,4 +92,4 @@ class FeatureExtractor:
         返回:
             np.ndarray: 特征矩阵，形状为 (n_samples, 16)
         """
-        return np.array([FeatureExtractor.extract_features(observations) for observations in observations_list])
+        return np.array([GMMFeatureExtractor.extract_features(observations) for observations in observations_list])

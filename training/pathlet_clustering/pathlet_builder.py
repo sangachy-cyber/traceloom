@@ -21,7 +21,7 @@
     states = [0] * 220  # 假设所有观测都属于状态0
 
     # 添加观测序列和状态序列
-    builder.add_sequence(observations, states, "test_trace")
+    builder.add_sequence(observations, "test_trace")
     print(f"添加了 {len(builder.pathlets)} 个径元")
 
     # 保存径元到Parquet文件
@@ -69,7 +69,7 @@ class PathletBuilder:
         self.pathlets: List[Pathlet] = []
         self.current_id = 0
 
-    def add_sequence(self, obs_seq, states: List[int], source_file: str):
+    def add_sequence(self, obs_seq, states, source_file: str):
         """添加观测序列和状态序列
 
         Args:
@@ -81,7 +81,7 @@ class PathletBuilder:
             ValueError: 当obs_seq没有长度或形状属性时抛出
 
         Examples:
-            # 添加观测序列和状态序列
+            # 添加观测序列
             builder = PathletBuilder()
             observations = [Observation(...)] * 220
             states = [0] * 220
@@ -91,21 +91,26 @@ class PathletBuilder:
         total_size = self.body_size + self.tail_size
 
         # 确定序列长度
-        if isinstance(obs_seq, list) or (hasattr(obs_seq, '__len__') and not isinstance(obs_seq, dict)):
+        if isinstance(obs_seq, list) or (hasattr(obs_seq, "__len__") and not isinstance(obs_seq, dict)):
             seq_length = len(obs_seq)
-        elif hasattr(obs_seq, 'shape'):
+        elif hasattr(obs_seq, "shape"):
             seq_length = obs_seq.shape[0]
         else:
             raise ValueError("obs_seq must have length or shape attribute")
 
         for i in range(0, seq_length - total_size + 1, 1):
-            # 使用主干的第一个状态作为径元的状态
-            state_id = states[i]
+            # 确定当前径元的状态ID
+            state_id = -1
+            if states and i < len(states):
+                state_id = states[i]
+
             pathlet = Pathlet(
                 pathlet_id=f"{source_file}_{i}",
+                trace_name=source_file,
+                start_index=i,
                 body=self._extract_body(obs_seq, i),
                 tail=self._extract_tail(obs_seq, i + self.body_size),
-                state_label=StateLabel(state_id=state_id, confidence=1.0)
+                state_label=StateLabel(state_id=state_id, confidence=1.0),
             )
             self.pathlets.append(pathlet)
             self.current_id += 1
@@ -131,12 +136,12 @@ class PathletBuilder:
             if isinstance(obs_seq, pd.DataFrame):
                 # 从DataFrame中提取数据
                 obs = Observation(
-                    delay_up=obs_seq.iloc[i]['delay_up'],
-                    loss_up=obs_seq.iloc[i]['loss_up'],
-                    bw_up=obs_seq.iloc[i]['bw_up'],
-                    delay_down=obs_seq.iloc[i]['delay_down'],
-                    loss_down=obs_seq.iloc[i]['loss_down'],
-                    bw_down=obs_seq.iloc[i]['bw_down']
+                    delay_up=obs_seq.iloc[i]["delay_up"],
+                    loss_up=obs_seq.iloc[i]["loss_up"],
+                    bw_up=obs_seq.iloc[i]["bw_up"],
+                    delay_down=obs_seq.iloc[i]["delay_down"],
+                    loss_down=obs_seq.iloc[i]["loss_down"],
+                    bw_down=obs_seq.iloc[i]["bw_down"],
                 )
             else:
                 # 假设是List[Observation]
@@ -165,12 +170,12 @@ class PathletBuilder:
             if isinstance(obs_seq, pd.DataFrame):
                 # 从DataFrame中提取数据
                 obs = Observation(
-                    delay_up=obs_seq.iloc[i]['delay_up'],
-                    loss_up=obs_seq.iloc[i]['loss_up'],
-                    bw_up=obs_seq.iloc[i]['bw_up'],
-                    delay_down=obs_seq.iloc[i]['delay_down'],
-                    loss_down=obs_seq.iloc[i]['loss_down'],
-                    bw_down=obs_seq.iloc[i]['bw_down']
+                    delay_up=obs_seq.iloc[i]["delay_up"],
+                    loss_up=obs_seq.iloc[i]["loss_up"],
+                    bw_up=obs_seq.iloc[i]["bw_up"],
+                    delay_down=obs_seq.iloc[i]["delay_down"],
+                    loss_down=obs_seq.iloc[i]["loss_down"],
+                    bw_down=obs_seq.iloc[i]["bw_down"],
                 )
             else:
                 # 假设是List[Observation]
@@ -196,10 +201,10 @@ class PathletBuilder:
 
         # 构建DataFrame
         data = {
-            'pathlet_id': [p.pathlet_id for p in self.pathlets],
-            'state_id': [p.state_label.state_id for p in self.pathlets],
-            'source_file': [p.pathlet_id.split('_')[0] for p in self.pathlets],
-            'start_index': [int(p.pathlet_id.split('_')[-1]) for p in self.pathlets]
+            "pathlet_id": [p.pathlet_id for p in self.pathlets],
+            "state_id": [p.state_label.state_id for p in self.pathlets],
+            "source_file": [p.pathlet_id.split("_")[0] for p in self.pathlets],
+            "start_index": [int(p.pathlet_id.split("_")[-1]) for p in self.pathlets],
         }
 
         df = pd.DataFrame(data)

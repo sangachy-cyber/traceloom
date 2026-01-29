@@ -16,7 +16,7 @@ from traceloom.validation.validator import (
     generate_trace_report,
     validate_trace_realism,
 )
-from traceloom.domain.raw_trace import RawTraceSegment, TraceContextValues
+from traceloom.domain.raw_trace import RawTraceSegment
 from traceloom.domain.pathlet import Observation
 
 
@@ -35,17 +35,7 @@ def sample_profiles():
             bw_down=12 - i * 0.5,
         )
         observations.append(obs)
-    
-    # 创建上下文值
-    ctx_values = TraceContextValues(
-        delay_up_mean=145.0,
-        loss_up_mean=0.055,
-        bw_up_mean=7.75,
-        delay_down_mean=155.0,
-        loss_down_mean=0.065,
-        bw_down_mean=9.75,
-    )
-    
+
     # 创建网络剖面
     profiles = []
     for i in range(5):
@@ -55,9 +45,8 @@ def sample_profiles():
             observations=observations,
             is_valid=True,
         )
-        profile.ctx_values = ctx_values
         profiles.append(profile)
-    
+
     return profiles
 
 
@@ -71,7 +60,7 @@ def test_calculate_rtt_metrics(sample_profiles):
     assert "skew_rtt" in metrics
     assert "kurtosis_rtt" in metrics
     assert "rtt_cv" in metrics
-    
+
     # 测试空输入
     empty_metrics = calculate_rtt_metrics([])
     assert empty_metrics["avg_rtt"] == 0.0
@@ -86,7 +75,7 @@ def test_calculate_loss_metrics(sample_profiles):
     assert "std_loss_rate" in metrics
     assert "loss_rate_cv" in metrics
     assert "packet_loss_ratio" in metrics
-    
+
     # 测试空输入
     empty_metrics = calculate_loss_metrics([])
     assert empty_metrics["avg_loss_rate"] == 0.0
@@ -101,7 +90,7 @@ def test_calculate_bandwidth_metrics(sample_profiles):
     assert "std_bandwidth" in metrics
     assert "bandwidth_cv" in metrics
     assert "bandwidth_utilization" in metrics
-    
+
     # 测试空输入
     empty_metrics = calculate_bandwidth_metrics([])
     assert empty_metrics["avg_bandwidth"] == 0.0
@@ -115,7 +104,7 @@ def test_calculate_sequence_metrics(sample_profiles):
     assert "rtt_jump_count" in metrics
     assert "loss_jump_count" in metrics
     assert "bandwidth_jump_count" in metrics
-    
+
     # 测试空输入
     empty_metrics = calculate_sequence_metrics([])
     assert empty_metrics["duration"] == 0.0
@@ -127,7 +116,7 @@ def test_calculate_correlation_metrics(sample_profiles):
     assert "rtt_loss_corr" in metrics
     assert "rtt_bandwidth_corr" in metrics
     assert "loss_bandwidth_corr" in metrics
-    
+
     # 测试少于2个剖面的情况
     single_profile_metrics = calculate_correlation_metrics([sample_profiles[0]])
     assert single_profile_metrics["rtt_loss_corr"] == 0.0
@@ -137,7 +126,7 @@ def test_calculate_all_metrics(sample_profiles):
     """测试计算所有指标"""
     metrics = calculate_all_metrics(sample_profiles)
     assert len(metrics) > 0
-    
+
     # 测试空输入
     empty_metrics = calculate_all_metrics([])
     assert empty_metrics == {}
@@ -150,7 +139,7 @@ def test_validate_trace(sample_profiles):
     assert "valid" in result
     assert "message" in result
     assert "score" in result
-    
+
     # 测试空输入
     empty_result = validate_trace([])
     assert not empty_result["valid"]

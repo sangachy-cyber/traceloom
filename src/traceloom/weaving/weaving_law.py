@@ -79,12 +79,12 @@ class WeavingLawEngine:
         # 简单实现：基于观测数据的均值预测状态
         try:
             # 计算平均延迟
-            if hasattr(observations, '__iter__'):
+            if hasattr(observations, "__iter__"):
                 # 假设observations是一个观测数据列表
                 total_delay = 0
                 count = 0
                 for obs in observations:
-                    if hasattr(obs, 'delay_up') and hasattr(obs, 'delay_down'):
+                    if hasattr(obs, "delay_up") and hasattr(obs, "delay_down"):
                         total_delay += (obs.delay_up + obs.delay_down) / 2
                         count += 1
                 if count > 0:

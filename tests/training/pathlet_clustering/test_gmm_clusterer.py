@@ -28,18 +28,9 @@ class TestGMMClusterer:
         """设置测试环境"""
         self.clusterer = GMMClusterer(n_components=2, confidence_threshold=0.85)
         self.test_observations = [
-            Observation(
-                delay_up=10.0, loss_up=0.01, bw_up=100.0,
-                delay_down=12.0, loss_down=0.02, bw_down=120.0
-            ),
-            Observation(
-                delay_up=11.0, loss_up=0.01, bw_up=105.0,
-                delay_down=13.0, loss_down=0.02, bw_down=125.0
-            ),
-            Observation(
-                delay_up=12.0, loss_up=0.02, bw_up=110.0,
-                delay_down=14.0, loss_down=0.03, bw_down=130.0
-            )
+            Observation(delay_up=10.0, loss_up=0.01, bw_up=100.0, delay_down=12.0, loss_down=0.02, bw_down=120.0),
+            Observation(delay_up=11.0, loss_up=0.01, bw_up=105.0, delay_down=13.0, loss_down=0.02, bw_down=125.0),
+            Observation(delay_up=12.0, loss_up=0.02, bw_up=110.0, delay_down=14.0, loss_down=0.03, bw_down=130.0),
         ]
 
     def test_extract_features(self):
@@ -62,7 +53,7 @@ class TestGMMClusterer:
             pathlet = Pathlet(
                 pathlet_id=f"test_{i}",
                 body=BodyObservations(observations=self.test_observations),
-                tail=TailObservations(observations=self.test_observations[:1])
+                tail=TailObservations(observations=self.test_observations[:1]),
             )
             pathlets.append(pathlet)
 
@@ -83,7 +74,7 @@ class TestGMMClusterer:
             pathlet = Pathlet(
                 pathlet_id=f"test_{i}",
                 body=BodyObservations(observations=self.test_observations),
-                tail=TailObservations(observations=self.test_observations[:1])
+                tail=TailObservations(observations=self.test_observations[:1]),
             )
             pathlets.append(pathlet)
 
@@ -118,7 +109,7 @@ class TestGMMClusterer:
             pathlet = Pathlet(
                 pathlet_id=f"test_{i}",
                 body=BodyObservations(observations=self.test_observations),
-                tail=TailObservations(observations=self.test_observations[:1])
+                tail=TailObservations(observations=self.test_observations[:1]),
             )
             pathlets.append(pathlet)
         self.clusterer.fit(pathlets)

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from pydantic_settings import BaseSettings
 from pydantic import ConfigDict
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -37,10 +37,10 @@ class Settings(BaseSettings):
     MODELS_DIR: Path = DATA_DIR / "models" / "default"
     """模型路径，支持多模型实验"""
 
-    BEFORE_LABEL_DIR: Path = DATA_DIR / "before_labels"
+    BEFORE_LABEL_DIR: Path = DATA_DIR / "before_label"
     """.BeforeLabel 目录，用于存储.BeforeLabel 文件"""
 
-    AFTER_LABEL_DIR: Path = DATA_DIR / "after_labels"
+    AFTER_LABEL_DIR: Path = DATA_DIR / "after_label"
     """.AfterLabel 目录，用于存储.AfterLabel 文件"""
 
     # 5. 径元结构参数

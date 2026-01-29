@@ -71,21 +71,30 @@ def _get_profile_data(profiles: List[Union[RawProfile, ProcessedProfile]], featu
     for profile in profiles:
         # 确定使用哪个profile对象
         # 检查对象是否有raw_profile属性，而不是基于类型判断
-        current_profile = getattr(profile, 'raw_profile', profile)
+        current_profile = getattr(profile, "raw_profile", profile)
 
-        # 从ctx_values中提取特征值
-        if feature == "delay_up":
-            values.append(current_profile.ctx_values.delay_up_mean)
-        elif feature == "delay_down":
-            values.append(current_profile.ctx_values.delay_down_mean)
-        elif feature == "loss_up":
-            values.append(current_profile.ctx_values.loss_up_mean)
-        elif feature == "loss_down":
-            values.append(current_profile.ctx_values.loss_down_mean)
-        elif feature == "bw_up":
-            values.append(current_profile.ctx_values.bw_up_mean)
-        elif feature == "bw_down":
-            values.append(current_profile.ctx_values.bw_down_mean)
+        # 从observations中计算特征值的均值
+        feature_values = []
+        for obs in current_profile.observations:
+            if feature == "delay_up":
+                feature_values.append(obs.delay_up)
+            elif feature == "delay_down":
+                feature_values.append(obs.delay_down)
+            elif feature == "loss_up":
+                feature_values.append(obs.loss_up)
+            elif feature == "loss_down":
+                feature_values.append(obs.loss_down)
+            elif feature == "bw_up":
+                feature_values.append(obs.bw_up)
+            elif feature == "bw_down":
+                feature_values.append(obs.bw_down)
+        
+        # 计算均值并添加到结果列表
+        if feature_values:
+            mean_value = sum(feature_values) / len(feature_values)
+            values.append(mean_value)
+        else:
+            values.append(0.0)
     return values
 
 
@@ -129,6 +138,7 @@ def calculate_rtt_metrics(profiles: List[Union[RawProfile, ProcessedProfile]]) -
 
     # 使用 warnings 模块捕获和忽略精度损失警告
     import warnings
+
     with warnings.catch_warnings():
         # 忽略精度损失警告
         warnings.filterwarnings("ignore", message="Precision loss occurred in moment calculation")
@@ -287,7 +297,7 @@ def calculate_sequence_metrics(profiles: List[Union[RawProfile, ProcessedProfile
     # 提取start_index,假设每个profile间隔10秒（根据ctx_10s的名称）
     start_indices = []
     for profile in profiles:
-        current_profile = getattr(profile, 'raw_profile', profile)
+        current_profile = getattr(profile, "raw_profile", profile)
         start_indices.append(current_profile.start_index)
 
     # 计算持续时间（假设每个索引对应10秒）
@@ -375,7 +385,7 @@ def calculate_correlation_metrics(profiles: List[Union[RawProfile, ProcessedProf
     bandwidth_values = np.array([(up + down) / 2 for up, down in zip(bw_up_values, bw_down_values, strict=False)])
 
     # 计算相关系数，添加错误处理和警告过滤
-    with np.errstate(invalid='ignore', divide='ignore'):
+    with np.errstate(invalid="ignore", divide="ignore"):
         try:
             # 检查数据是否有足够的变化
             if np.std(rtt_values) == 0 or np.std(loss_values) == 0:
@@ -446,7 +456,9 @@ def calculate_all_metrics(profiles: List[Union[RawProfile, ProcessedProfile]]) -
     return all_metrics
 
 
-def validate_trace(trace_data: List[Union[RawProfile, ProcessedProfile]], threshold_config: Optional[Dict[str, float]] = None) -> Dict[str, any]:
+def validate_trace(
+    trace_data: List[Union[RawProfile, ProcessedProfile]], threshold_config: Optional[Dict[str, float]] = None
+) -> Dict[str, any]:
     """验证网络轨迹数据
 
     验证网络轨迹数据是否符合预期的阈值要求，并计算验证分数。
@@ -730,7 +742,9 @@ def generate_trace_report(trace_data: List[Union[RawProfile, ProcessedProfile]])
     return "\n".join(report)
 
 
-def validate_trace_realism(trace_data: List[Union[RawProfile, ProcessedProfile]], threshold_config: Optional[Dict[str, float]] = None) -> Dict[str, any]:
+def validate_trace_realism(
+    trace_data: List[Union[RawProfile, ProcessedProfile]], threshold_config: Optional[Dict[str, float]] = None
+) -> Dict[str, any]:
     """验证网络轨迹的真实性
 
     验证网络轨迹的真实性，检查各项指标是否符合真实网络的特征。
