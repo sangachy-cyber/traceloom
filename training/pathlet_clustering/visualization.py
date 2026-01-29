@@ -49,12 +49,12 @@ from sklearn.manifold import TSNE
 
 from traceloom.core.logger import logger
 
-# 尝试导入 UMAP，如果不可用则保持 None
-UMAP = None
-try:
-    from umap import UMAP
-except ImportError:
-    logger.warning("UMAP 库不可用，将只支持 t-SNE 可视化")
+from umap import UMAP
+
+from traceloom.core.utils import setup_chinese_font
+
+# 设置中文字体
+setup_chinese_font()
 
 
 class TSNEVisualizer:
@@ -101,13 +101,13 @@ class TSNEVisualizer:
         return {state: cmap(i / max(1, n_colors - 1)) for i, state in enumerate(unique_states)}
 
     def visualize(
-        self,
-        features: List[np.ndarray],
-        labels: List[int],
-        state_metadata: Dict[str, Any],
-        output_path: Path,
-        probabilities: Optional[List[float]] = None,
-        method: str = "tsne",
+            self,
+            features: List[np.ndarray],
+            labels: List[int],
+            state_metadata: Dict[str, Any],
+            output_path: Path,
+            probabilities: Optional[List[float]] = None,
+            method: str = "tsne",
     ) -> None:
         """生成降维可视化
 
@@ -166,13 +166,13 @@ class TSNEVisualizer:
         self._plot_embedding(result, labels, state_metadata, output_path, probabilities, method)
 
     def _plot_embedding(
-        self,
-        embedding_result: np.ndarray,
-        labels: np.ndarray,
-        state_metadata: Dict[str, Any],
-        output_path: Path,
-        probabilities: Optional[np.ndarray] = None,
-        method: str = "tsne",
+            self,
+            embedding_result: np.ndarray,
+            labels: np.ndarray,
+            state_metadata: Dict[str, Any],
+            output_path: Path,
+            probabilities: Optional[np.ndarray] = None,
+            method: str = "tsne",
     ) -> None:
         """绘制降维结果
 
@@ -189,9 +189,6 @@ class TSNEVisualizer:
             # 注意：此方法通常由 visualize 方法内部调用
             visualizer._plot_embedding(result, labels, state_metadata, output_path, probabilities, method='tsne')
         """
-        # 设置中文字体
-        plt.rcParams["font.sans-serif"] = ["SimHei", "Arial Unicode MS", "DejaVu Sans"]
-        plt.rcParams["axes.unicode_minus"] = False
 
         # 创建画布
         plt.figure(figsize=(10, 8))
@@ -246,11 +243,11 @@ class TSNEVisualizer:
         return {"state_names": state_names, "state_colors": state_colors, "state_is_pure": state_is_pure}
 
     def _plot_scatter(
-        self,
-        embedding_result: np.ndarray,
-        labels: np.ndarray,
-        state_info: Dict[str, Any],
-        probabilities: Optional[np.ndarray] = None,
+            self,
+            embedding_result: np.ndarray,
+            labels: np.ndarray,
+            state_info: Dict[str, Any],
+            probabilities: Optional[np.ndarray] = None,
     ) -> None:
         """绘制散点图
 

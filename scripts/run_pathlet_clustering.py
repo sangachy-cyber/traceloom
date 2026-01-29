@@ -71,10 +71,9 @@ def main(
         logger.info("=" * 60)
         logger.info("训练结果已保存到以下位置:")
         logger.info("  - 状态元数据: data/after_label/state_metadata.json")
-        logger.info("  - 训练集: data/after_label/train.csv")
-        logger.info("  - 测试集: data/after_label/test.csv")
         logger.info("  - 聚类模型: data/models/gmm_model.joblib")
         logger.info("  - 状态映射: data/models/state_mapping.json")
+        logger.info("  - 带有状态信息的径元: data/pathlets/")
         if visualize:
             logger.info("  - 可视化结果: data/after_label/clustering_gmm_tsne.png")
         logger.info("=" * 60)

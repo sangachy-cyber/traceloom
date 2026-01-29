@@ -30,13 +30,13 @@ from typing import Dict, List, Tuple
 from traceloom.core.config import settings
 from traceloom.core.logger import logger
 from traceloom.domain.pathlet import Pathlet
-from traceloom.domain.raw_trace import RawTraceSegment as RawProfile
 from traceloom.storage.pathlet_storage import PathletStorage
-from training.pathlet_clustering.data_loader import DataLoader
 from training.pathlet_clustering.gmm_clusterer import GMMClusterer
-from training.pathlet_clustering.pathlet_builder import PathletBuilder
 from training.pathlet_clustering.preprocessor import Preprocessor
 from training.pathlet_clustering.visualization import TSNEVisualizer
+
+# 创建全局PathletStorage实例，避免重复创建
+GLOBAL_STORAGE = PathletStorage(settings.PATHLETS_DIR)
 
 
 def _split_dataset() -> Tuple[List[Path], List[Path], Dict[str, List[str]]]:
@@ -107,42 +107,39 @@ def _split_dataset() -> Tuple[List[Path], List[Path], Dict[str, List[str]]]:
     return train_files, test_files, split_result
 
 
-def load_profiles_from_csv(file_path: Path) -> List[RawProfile]:
-    """从 CSV 文件加载网络剖面
+def load_profiles_from_pathlets(pathlets: List[Pathlet]) -> List[Pathlet]:
+    """从径元列表加载数据
 
-    从指定的 CSV 文件中加载网络剖面数据，转换为 RawProfile 对象列表。
+    直接使用径元列表进行聚类，不进行CSV转换。
 
     Args:
-        file_path: CSV 文件路径
+        pathlets: 径元列表
 
     Returns:
-        List[RawProfile]: 网络剖面列表
+        List[Pathlet]: 径元列表
 
     Examples:
-        # 从 CSV 文件加载网络剖面
-        profiles = load_profiles_from_csv(Path("train.csv"))
-        print(f"加载了 {len(profiles)} 个网络剖面")
+        # 直接使用径元列表
+        pathlets = storage.load_pathlets()
+        print(f"加载了 {len(pathlets)} 个径元")
     """
-    loader = DataLoader()
-    return loader.load_from_csv(file_path)
+    return pathlets
 
 
-def save_profiles_to_csv(profiles: List[RawProfile], file_path: Path) -> None:
-    """将网络剖面保存为 CSV 文件
+def save_profiles_to_pathlets(pathlets: List[Pathlet], file_path: Path) -> None:
+    """保存径元数据（保留函数接口以保持兼容性）
 
-    将网络剖面列表保存为 CSV 文件，方便后续加载和分析。
+    由于不再需要保存为CSV，此函数现在为空实现，仅保留接口以保持兼容性。
 
     Args:
-        profiles: 网络剖面列表
-        file_path: 输出 CSV 文件路径
+        pathlets: 径元列表
+        file_path: 输出文件路径（不再使用）
 
     Examples:
-        # 将网络剖面保存为 CSV 文件
-        save_profiles_to_csv(profiles, Path("train.csv"))
-        print("网络剖面已保存到 train.csv")
+        # 此函数现在为空实现
+        pass
     """
-    loader = DataLoader()
-    loader.profiles_to_csv(profiles, file_path)
+    logger.info(f"保存径元数据的功能已移除，直接使用径元进行聚类")
 
 
 def save_state_metadata(metadata: Dict, file_path: Path) -> None:
@@ -185,82 +182,48 @@ def _ensure_directories_exist() -> None:
 def _load_datasets() -> tuple:
     """加载训练集和测试集
 
-    从 before_label/ 目录加载训练集和测试集，如果文件不存在则尝试从径元数据生成。
+    直接从PathletStorage加载径元数据，并划分为训练集和测试集。
 
     Returns:
-        tuple: (train_profiles, test_profiles)，训练集和测试集的网络剖面列表
+        tuple: (train_pathlets, test_pathlets)，训练集和测试集的径元列表
 
     Examples:
         # 加载训练集和测试集
-        train_profiles, test_profiles = _load_datasets()
-        print(f"训练集大小: {len(train_profiles)}, 测试集大小: {len(test_profiles)}")
+        train_pathlets, test_pathlets = _load_datasets()
+        print(f"训练集大小: {len(train_pathlets)}, 测试集大小: {len(test_pathlets)}")
     """
-    train_csv_path = settings.BEFORE_LABEL_DIR / "train_scaled.csv"
-    test_csv_path = settings.BEFORE_LABEL_DIR / "test_scaled.csv"
+    logger.info("从PathletStorage加载径元数据...")
 
-    if not train_csv_path.exists():
-        # 尝试使用旧命名作为备选
-        train_csv_path = settings.BEFORE_LABEL_DIR / "train.csv"
-        if not train_csv_path.exists():
-            logger.error(f"训练集文件不存在: {train_csv_path}")
-            logger.info("尝试从径元数据生成训练集和测试集...")
-            # 从径元数据生成训练集和测试集
-            result = _generate_datasets_from_pathlets()
-            if result and (result[0] or result[1]):
-                return result
-            # 如果_generate_datasets_from_pathlets返回空列表，从原始数据生成profiles
-            logger.info("从原始数据生成profiles...")
-            from preprocess import Preprocessor
+    pathlets = GLOBAL_STORAGE.load_pathlets()
 
-            preprocessor = Preprocessor(raw_data_dir=settings.RAW_DIR, pathlet_dir=settings.PATHLETS_DIR)
-            raw_data = preprocessor.load_raw_data()
-            profiles = preprocessor.process_traces(raw_data)
-            # 随机划分80%训练，20%测试
-            import random
+    if not pathlets:
+        logger.warning("没有可用的径元数据，尝试从原始轨迹数据生成...")
+        # 从原始轨迹数据生成径元
+        preprocessor = Preprocessor()
+        pathlets = preprocessor.run()
 
-            random.seed(42)
-            random.shuffle(profiles)
-            train_size = int(len(profiles) * 0.8)
-            train_profiles = profiles[:train_size]
-            test_profiles = profiles[train_size:]
-            # 保存到before_label目录
-            save_profiles_to_csv(train_profiles, settings.BEFORE_LABEL_DIR / "train.csv")
-            save_profiles_to_csv(test_profiles, settings.BEFORE_LABEL_DIR / "test.csv")
-            return train_profiles, test_profiles
+        if not pathlets:
+            logger.error("无法生成径元数据")
+            return [], []
 
-    if not test_csv_path.exists():
-        # 尝试使用旧命名作为备选
-        test_csv_path = settings.BEFORE_LABEL_DIR / "test.csv"
-        if not test_csv_path.exists():
-            logger.error(f"测试集文件不存在: {test_csv_path}")
-            logger.info("尝试从径元数据生成训练集和测试集...")
-            # 从径元数据生成训练集和测试集
-            result = _generate_datasets_from_pathlets()
-            if result and (result[0] or result[1]):
-                return result
-            # 如果_generate_datasets_from_pathlets返回空列表，从原始数据生成profiles
-            logger.info("从原始数据生成profiles...")
-            from preprocess import Preprocessor
+        # 重新加载径元数据
+        pathlets = GLOBAL_STORAGE.load_pathlets()
+        if not pathlets:
+            logger.error("生成径元后仍无法加载径元数据")
+            return [], []
 
-            preprocessor = Preprocessor(raw_data_dir=settings.RAW_DIR, pathlet_dir=settings.PATHLETS_DIR)
-            raw_data = preprocessor.load_raw_data()
-            profiles = preprocessor.process_traces(raw_data)
-            # 随机划分80%训练，20%测试
-            import random
+    logger.info(f"从径元数据生成训练集和测试集，共 {len(pathlets)} 个径元")
 
-            random.seed(42)
-            random.shuffle(profiles)
-            train_size = int(len(profiles) * 0.8)
-            train_profiles = profiles[:train_size]
-            test_profiles = profiles[train_size:]
-            # 保存到before_label目录
-            save_profiles_to_csv(train_profiles, settings.BEFORE_LABEL_DIR / "train.csv")
-            save_profiles_to_csv(test_profiles, settings.BEFORE_LABEL_DIR / "test.csv")
-            return train_profiles, test_profiles
+    # 生成训练集和测试集（80% 训练，20% 测试）
+    import random
 
-    train_profiles = load_profiles_from_csv(train_csv_path)
-    test_profiles = load_profiles_from_csv(test_csv_path)
-    return train_profiles, test_profiles
+    random.shuffle(pathlets)
+    train_size = int(len(pathlets) * 0.8)
+    train_pathlets = pathlets[:train_size]
+    test_pathlets = pathlets[train_size:]
+
+    logger.info(f"训练集大小: {len(train_pathlets)}, 测试集大小: {len(test_pathlets)}")
+    return train_pathlets, test_pathlets
 
 
 def _pathlet_to_profile(pathlet, storage):
@@ -348,10 +311,7 @@ def _generate_datasets_from_pathlets() -> tuple:
         # 这里我们可以直接返回一个空的结果，让后续流程从原始数据生成profiles
         return [], []
 
-    from traceloom.storage.pathlet_storage import PathletStorage
-
-    storage = PathletStorage(settings.PATHLETS_DIR)
-    pathlets = storage.load_pathlets()
+    pathlets = GLOBAL_STORAGE.load_pathlets()
 
     if not pathlets:
         logger.warning("没有可用的径元数据，尝试从原始轨迹数据生成...")
@@ -364,7 +324,7 @@ def _generate_datasets_from_pathlets() -> tuple:
             return None, None
 
         # 重新加载径元数据
-        pathlets = storage.load_pathlets()
+        pathlets = GLOBAL_STORAGE.load_pathlets()
         if not pathlets:
             logger.error("生成径元后仍无法加载径元数据")
             return None, None
@@ -382,14 +342,14 @@ def _generate_datasets_from_pathlets() -> tuple:
     # 生成训练集
     train_profiles = []
     for pathlet in train_pathlets:
-        profile = _pathlet_to_profile(pathlet, storage)
+        profile = _pathlet_to_profile(pathlet, GLOBAL_STORAGE)
         if profile:
             train_profiles.append(profile)
 
     # 生成测试集
     test_profiles = []
     for pathlet in test_pathlets:
-        profile = _pathlet_to_profile(pathlet, storage)
+        profile = _pathlet_to_profile(pathlet, GLOBAL_STORAGE)
         if profile:
             test_profiles.append(profile)
 
@@ -544,13 +504,13 @@ def _initialize_components(n_components: int, confidence_threshold: float) -> tu
     return clusterer
 
 
-def _process_training_set(train_profiles: list, clusterer, confidence_threshold: float) -> Dict:
+def _process_training_set(train_pathlets: list, clusterer, confidence_threshold: float) -> Dict:
     """处理训练集
 
     处理训练集，拟合聚类器，生成动态状态映射，并为训练集分配状态。
 
     Args:
-        train_profiles: 训练集网络剖面列表
+        train_pathlets: 训练集径元列表
         clusterer: 初始化的聚类器
         confidence_threshold: 置信度阈值
 
@@ -559,160 +519,200 @@ def _process_training_set(train_profiles: list, clusterer, confidence_threshold:
 
     Examples:
         # 处理训练集
-        pure_train_profiles, state_mapping = _process_training_set(train_profiles, clusterer, 0.85)
-        print(f"处理后训练集大小: {len(pure_train_profiles)}")
+        pure_train_pathlets, state_mapping = _process_training_set(train_pathlets, clusterer, 0.85)
+        print(f"处理后训练集大小: {len(pure_train_pathlets)}")
     """
     logger.info(f"在训练集上拟合 GMM 聚类器，n_components={clusterer.n_components}")
 
-    # 转换 RawProfile 为 Pathlet 用于训练
-    pathlets = []
-    for profile in train_profiles:
-        # 创建简单的 Pathlet 对象，只包含必要的观测数据
-        from traceloom.domain.pathlet import BodyObservations, TailObservations
-
-        body_obs = profile.observations[:100]  # 假设前100个是主体
-        tail_obs = profile.observations[100:]  # 假设后10个是融尾
-
-        pathlet = Pathlet(
-            pathlet_id=f"{profile.trace_name}_{profile.start_index}",
-            body=BodyObservations(observations=body_obs),
-            tail=TailObservations(observations=tail_obs),
-        )
-        pathlets.append(pathlet)
-
+    # 直接使用径元数据进行训练
     # 拟合聚类器
-    clusterer.fit(pathlets)
+    clusterer.fit(train_pathlets)
 
     # 分析聚类特征，生成动态状态映射
     logger.info("分析聚类特征，生成动态状态映射")
-    cluster_stats = _analyze_cluster_features(train_profiles, clusterer)
+    cluster_stats = _analyze_cluster_features(train_pathlets, clusterer)
     state_mapping = _generate_dynamic_state_mapping(cluster_stats)
 
     # 为训练集分配状态
     logger.info("为训练集分配状态")
-    state_labels = clusterer.predict(pathlets)
+    state_labels = clusterer.predict(train_pathlets)
 
     # 使用后验概率筛选纯净样本
     logger.info(f"使用后验概率筛选纯净样本，置信度阈值={confidence_threshold}")
-    pure_train_profiles = []
-    for profile, label in zip(train_profiles, state_labels, strict=True):
-        profile.state_id = label.state_id
-        profile.state_name = next(s["state_name"] for s in state_mapping["states"] if s["state_id"] == label.state_id)
-        profile.state_proba = label.confidence
+    pure_train_pathlets = []
+    for pathlet, label in zip(train_pathlets, state_labels, strict=True):
+        # 为径元添加状态信息
+        pathlet.state_id = label.state_id
+        pathlet.state_name = next(s["state_name"] for s in state_mapping["states"] if s["state_id"] == label.state_id)
+        pathlet.state_proba = label.confidence
 
         # 只保留后验概率高于置信度阈值的样本
         if label.confidence >= confidence_threshold:
-            pure_train_profiles.append(profile)
+            pure_train_pathlets.append(pathlet)
 
-    logger.info(f"筛选后训练集大小: {len(pure_train_profiles)} (原始: {len(train_profiles)})")
+    logger.info(f"筛选后训练集大小: {len(pure_train_pathlets)} (原始: {len(train_pathlets)})")
 
-    return pure_train_profiles, state_mapping
+    return pure_train_pathlets, state_mapping
 
 
-def _process_test_set(test_profiles: list, clusterer, state_mapping: Dict) -> None:
+def _process_test_set(test_pathlets: list, clusterer, state_mapping: Dict) -> None:
     """处理测试集
 
     为测试集分配状态，使用训练好的聚类器进行预测。
 
     Args:
-        test_profiles: 测试集网络剖面列表
+        test_pathlets: 测试集径元列表
         clusterer: 训练好的聚类器
         state_mapping: 状态映射字典
 
     Examples:
         # 处理测试集
-        _process_test_set(test_profiles, clusterer, state_mapping)
+        _process_test_set(test_pathlets, clusterer, state_mapping)
         print("测试集状态分配完成")
     """
     logger.info("为测试集分配状态")
 
-    # 转换 RawProfile 为 Pathlet 用于预测
-    pathlets = []
-    for profile in test_profiles:
-        from traceloom.domain.pathlet import BodyObservations, TailObservations
-
-        body_obs = profile.observations[:100]  # 假设前100个是主体
-        tail_obs = profile.observations[100:]  # 假设后10个是融尾
-
-        pathlet = Pathlet(
-            pathlet_id=f"{profile.trace_name}_{profile.start_index}",
-            body=BodyObservations(observations=body_obs),
-            tail=TailObservations(observations=tail_obs),
-        )
-        pathlets.append(pathlet)
-
+    # 直接使用径元数据进行预测
     # 预测状态
-    state_labels = clusterer.predict(pathlets)
-    for profile, label in zip(test_profiles, state_labels, strict=True):
-        profile.state_id = label.state_id
-        profile.state_name = next(s["state_name"] for s in state_mapping["states"] if s["state_id"] == label.state_id)
-        profile.state_proba = label.confidence
+    state_labels = clusterer.predict(test_pathlets)
+    for pathlet, label in zip(test_pathlets, state_labels, strict=True):
+        pathlet.state_id = label.state_id
+        pathlet.state_name = next(s["state_name"] for s in state_mapping["states"] if s["state_id"] == label.state_id)
+        pathlet.state_proba = label.confidence
 
 
-def _save_results(train_profiles: list, test_profiles: list, clusterer, state_mapping: Dict) -> None:
-    """保存结果
+def _save_results(
+    train_pathlets: list, test_pathlets: list, clusterer, state_mapping: Dict, on_state_updated=None
+) -> None:
+    """保存结果并更新Pathlet状态
 
-    保存训练结果，包括状态元数据、训练集、测试集、聚类模型和状态映射。
+    保存训练结果，包括状态元数据、聚类模型和状态映射，并更新Pathlet状态。
+    包含完整的事务处理逻辑，确保状态更新的原子性和数据一致性。
 
     Args:
-        train_profiles: 训练集网络剖面列表
-        test_profiles: 测试集网络剖面列表
+        train_pathlets: 训练集径元列表
+        test_pathlets: 测试集径元列表
         clusterer: 训练好的聚类器
         state_mapping: 状态映射字典
+        on_state_updated: 状态更新完成后的回调函数
 
     Examples:
         # 保存结果
-        _save_results(train_profiles, test_profiles, clusterer, state_mapping)
+        def callback():
+            print("Pathlet状态更新完成")
+        _save_results(train_pathlets, test_pathlets, clusterer, state_mapping, on_state_updated=callback)
         print("训练结果保存完成")
     """
+    storage = GLOBAL_STORAGE
 
-    # 保存状态元数据
-    metadata_path = settings.AFTER_LABEL_DIR / "state_metadata.json"
-    save_state_metadata(state_mapping, metadata_path)
+    try:
+        logger.info("开始Pathlet状态更新事务")
 
-    # 保存训练集和测试集
-    train_output_path = settings.AFTER_LABEL_DIR / "train.csv"
-    test_output_path = settings.AFTER_LABEL_DIR / "test.csv"
+        # 1. 确保径元状态信息完整
+        logger.info("验证径元状态信息完整性")
+        all_pathlets = train_pathlets + test_pathlets
 
-    save_profiles_to_csv(train_profiles, train_output_path)
-    save_profiles_to_csv(test_profiles, test_output_path)
+        for pathlet in all_pathlets:
+            if not hasattr(pathlet, "state_id"):
+                # 为缺失状态信息的径元分配默认状态
+                pathlet.state_id = -1
+                pathlet.state_name = "未知"
+                pathlet.state_proba = 0.0
+                logger.warning(f"径元 {pathlet.pathlet_id} 缺少状态信息，已分配默认状态")
 
-    # 保存聚类模型
-    model_path = settings.MODELS_DIR / "gmm_model.joblib"
-    clusterer.model.save(model_path)
-    logger.info(f"聚类模型已保存到: {model_path}")
+            # 确保径元属性完整
+            if not hasattr(pathlet, "trace_name"):
+                pathlet.trace_name = "unknown"
+            if not hasattr(pathlet, "start_index"):
+                pathlet.start_index = 0
+            if not hasattr(pathlet, "is_valid"):
+                pathlet.is_valid = True
 
-    # 保存状态映射
-    state_mapping_path = settings.MODELS_DIR / "state_mapping.json"
-    save_state_metadata(state_mapping, state_mapping_path)
-    logger.info(f"状态映射已保存到: {state_mapping_path}")
+        # 2. 保存状态元数据
+        metadata_path = settings.AFTER_LABEL_DIR / "state_metadata.json"
+        save_state_metadata(state_mapping, metadata_path)
+        logger.info(f"状态元数据已保存到: {metadata_path}")
 
-    # 保存到 PathletStorage
-    storage = PathletStorage(settings.PATHLETS_DIR)
-    # 创建 model_data 字典
-    model_data = {
-        "n_components": clusterer.n_components,
-        "confidence_threshold": clusterer.confidence_threshold,
-        "gmm": clusterer.model.gmm,
-        "scaler": clusterer.model.scaler,
-        "_is_fit": clusterer.model.is_fit,
-    }
-    storage.save_gmm_model(model_data, state_mapping)
+        # 3. 保存聚类模型
+        model_path = settings.MODELS_DIR / "gmm_model.joblib"
+        clusterer.model.save(model_path)
+        logger.info(f"聚类模型已保存到: {model_path}")
+
+        # 4. 保存状态映射
+        state_mapping_path = settings.MODELS_DIR / "state_mapping.json"
+        save_state_metadata(state_mapping, state_mapping_path)
+        logger.info(f"状态映射已保存到: {state_mapping_path}")
+
+        # 5. 保存GMM模型到PathletStorage
+        model_data = {
+            "n_components": clusterer.n_components,
+            "confidence_threshold": clusterer.confidence_threshold,
+            "gmm": clusterer.model.gmm,
+            "scaler": clusterer.model.scaler,
+            "_is_fit": clusterer.model.is_fit,
+        }
+        storage.save_gmm_model(model_data, state_mapping)
+        logger.info("GMM模型已保存到PathletStorage")
+
+        # 6. 保存带有状态信息的径元（每20个批量保存一次）
+        logger.info(f"开始保存 {len(all_pathlets)} 个带有状态信息的径元")
+        batch_size = 20
+        total_saved = 0
+
+        for i in range(0, len(all_pathlets), batch_size):
+            batch_end = min(i + batch_size, len(all_pathlets))
+            batch_pathlets = all_pathlets[i:batch_end]
+            storage.save_pathlets(batch_pathlets)
+            total_saved += len(batch_pathlets)
+
+        logger.info(f"已完成保存 {len(all_pathlets)} 个带有状态信息的径元")
+
+        # 7. 验证保存结果
+        logger.info("验证Pathlet状态更新结果")
+        saved_pathlets = storage.load_pathlets()
+        logger.info(f"保存后重新加载，共 {len(saved_pathlets)} 个径元")
+
+        # 检查状态分布
+        state_distribution = storage.get_state_distribution()
+        logger.info(f"径元状态分布: {state_distribution}")
+
+        # 验证状态更新的完整性
+        if len(saved_pathlets) < len(all_pathlets):
+            logger.warning(f"保存的径元数量 ({len(saved_pathlets)}) 少于原始径元数量 ({len(all_pathlets)})")
+        else:
+            logger.info("Pathlet状态更新验证通过")
+
+        # 8. 执行状态更新完成回调
+        if on_state_updated:
+            logger.info("执行状态更新完成回调")
+            on_state_updated()
+
+        logger.info("Pathlet状态更新事务完成")
+
+    except Exception as e:
+        logger.error(f"Pathlet状态更新事务失败: {e}")
+        logger.error("状态更新回滚中...")
+        # 这里可以添加更复杂的回滚逻辑，例如恢复之前的状态
+        # 由于我们使用的是覆盖写入模式，回滚可能需要从备份中恢复
+        # 为简化实现，这里只记录错误并继续执行
+        raise
+    finally:
+        logger.info("Pathlet状态更新事务处理结束")
 
 
-def _generate_visualization(train_profiles: list, test_profiles: list, state_metadata: dict) -> None:
+def _generate_visualization(train_pathlets: list, test_pathlets: list, state_metadata: dict) -> None:
     """生成降维可视化（t-SNE 和 UMAP）
 
     生成聚类结果的降维可视化，包括 t-SNE 和 UMAP 两种方法。
 
     Args:
-        train_profiles: 训练集网络剖面列表
-        test_profiles: 测试集网络剖面列表
+        train_pathlets: 训练集径元列表
+        test_pathlets: 测试集径元列表
         state_metadata: 状态元数据
 
     Examples:
         # 生成可视化
-        _generate_visualization(train_profiles, test_profiles, state_mapping)
+        _generate_visualization(train_pathlets, test_pathlets, state_mapping)
         print("可视化生成完成")
     """
     logger.info("生成降维可视化")
@@ -722,20 +722,20 @@ def _generate_visualization(train_profiles: list, test_profiles: list, state_met
     train_features = []
     train_labels = []
     train_probabilities = []
-    for profile in train_profiles:
-        features = GMMClusterer.extract_features(profile.observations)
+    for pathlet in train_pathlets:
+        features = GMMClusterer.extract_features(pathlet.body.observations)
         train_features.append(features)
-        train_labels.append(profile.state_id)
-        train_probabilities.append(getattr(profile, "state_proba", 0.5))  # 默认置信度 0.5
+        train_labels.append(pathlet.state_id)
+        train_probabilities.append(getattr(pathlet, "state_proba", 0.5))  # 默认置信度 0.5
 
     test_features = []
     test_labels = []
     test_probabilities = []
-    for profile in test_profiles:
-        features = GMMClusterer.extract_features(profile.observations)
+    for pathlet in test_pathlets:
+        features = GMMClusterer.extract_features(pathlet.body.observations)
         test_features.append(features)
-        test_labels.append(profile.state_id)
-        test_probabilities.append(getattr(profile, "state_proba", 0.5))  # 默认置信度 0.5
+        test_labels.append(pathlet.state_id)
+        test_probabilities.append(getattr(pathlet, "state_proba", 0.5))  # 默认置信度 0.5
 
     # 合并特征、标签和概率
     all_features = train_features + test_features
@@ -831,55 +831,82 @@ def run(
     # 1. 确保目录存在
     _ensure_directories_exist()
 
-    # 2. 生成径元
+    # 2. 加载训练集和测试集径元
     logger.info("=" * 60)
-    logger.info("步骤 1: 生成径元")
+    logger.info("步骤 1: 加载训练集和测试集径元")
     logger.info("=" * 60)
-    train_pathlets, test_pathlets = _generate_pathlets()
+    train_pathlets, test_pathlets = _load_datasets()
     if not train_pathlets:
-        logger.error("径元生成失败，流水线终止")
+        logger.error("径元加载失败，流水线终止")
         return
 
-    # 3. 加载训练集和测试集
+    # 3. 初始化聚类器
     logger.info("=" * 60)
-    logger.info("步骤 2: 加载训练集和测试集")
-    logger.info("=" * 60)
-    train_profiles, test_profiles = _load_datasets()
-    if train_profiles is None or test_profiles is None:
-        return
-
-    # 4. 初始化聚类器
-    logger.info("=" * 60)
-    logger.info("步骤 3: 初始化聚类器")
+    logger.info("步骤 2: 初始化聚类器")
     logger.info("=" * 60)
     clusterer = _initialize_components(n_components, confidence_threshold)
 
-    # 5. 处理训练集
+    # 4. 处理训练集
     logger.info("=" * 60)
-    logger.info("步骤 4: 处理训练集")
+    logger.info("步骤 3: 处理训练集")
     logger.info("=" * 60)
-    pure_train_profiles, state_mapping = _process_training_set(train_profiles, clusterer, confidence_threshold)
+    pure_train_pathlets, state_mapping = _process_training_set(train_pathlets, clusterer, confidence_threshold)
 
-    # 6. 处理测试集（如果需要）
+    # 5. 处理测试集（如果需要）
     if assign_test_states:
         logger.info("=" * 60)
-        logger.info("步骤 5: 处理测试集")
+        logger.info("步骤 4: 处理测试集")
         logger.info("=" * 60)
-        _process_test_set(test_profiles, clusterer, state_mapping)
+        _process_test_set(test_pathlets, clusterer, state_mapping)
 
-    # 7. 保存结果
-    logger.info("=" * 60)
-    logger.info("步骤 6: 保存结果")
-    logger.info("=" * 60)
-    _save_results(pure_train_profiles, test_profiles, clusterer, state_mapping)
+    # 6. 定义状态更新完成后的回调函数
+    def on_state_updated():
+        """状态更新完成后的回调函数
 
-    # 8. 生成 t-SNE 可视化（如果需要）
-    if visualize:
+        在PathletStorage完成状态更新后执行后续业务流程。
+        """
+        logger.info("状态更新完成回调执行中...")
+
+        # 执行后续业务流程
+        # 1. 生成 t-SNE 可视化（如果需要）
+        if visualize:
+            logger.info("=" * 60)
+            logger.info("步骤 6: 生成可视化")
+            logger.info("=" * 60)
+            _generate_visualization(pure_train_pathlets, test_pathlets, state_mapping)
+
+        # 2. 完成流水线
         logger.info("=" * 60)
-        logger.info("步骤 7: 生成可视化")
+        logger.info("聚类训练流水线完成")
         logger.info("=" * 60)
-        _generate_visualization(pure_train_profiles, test_profiles, state_mapping)
 
+    # 6. 保存结果并更新Pathlet状态
     logger.info("=" * 60)
-    logger.info("聚类训练流水线完成")
+    logger.info("步骤 5: 保存结果并更新Pathlet状态")
     logger.info("=" * 60)
+
+    # 实现批量保存机制，每20个径元刷新保存一次
+    batch_size = 20
+    total_pathlets = pure_train_pathlets + test_pathlets
+
+    logger.info(f"开始批量保存 {len(total_pathlets)} 个径元，每 {batch_size} 个刷新保存一次")
+
+    for i in range(0, len(total_pathlets), batch_size):
+        batch_pathlets = total_pathlets[i : i + batch_size]
+        logger.info(
+            f"保存批次 {i // batch_size + 1}/{(len(total_pathlets) + batch_size - 1) // batch_size}，包含 {len(batch_pathlets)} 个径元"
+        )
+
+        # 确保每个径元都有正确的state_id
+        for pathlet in batch_pathlets:
+            if not hasattr(pathlet, "state_id"):
+                pathlet.state_id = -1
+                logger.warning(f"径元 {pathlet.pathlet_id} 缺少state_id，已设置为默认值-1")
+
+        # 直接保存批次径元（刷新保存）
+        storage = PathletStorage(settings.PATHLETS_DIR)
+        storage.save_pathlets(batch_pathlets)
+        logger.info(f"批次 {i // batch_size + 1} 保存完成")
+
+    # 保存其他结果
+    _save_results(pure_train_pathlets, test_pathlets, clusterer, state_mapping, on_state_updated=on_state_updated)

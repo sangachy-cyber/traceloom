@@ -43,7 +43,7 @@ class PathletStorageAdapter:
         for pathlet in pathlets:
             trace_name = pathlet.trace_name
             start_index = pathlet.start_index
-            state_id = pathlet.state_label.state_id if pathlet.state_label else -1
+            state_id = getattr(pathlet, 'state_id', -1)
 
             # 提取元数据
             metadata.append(
