@@ -28,7 +28,7 @@ from typing import Any, Iterator, List, Optional
 
 from traceloom.core.exceptions import DataError, FileOperationError, ValidationError
 from traceloom.core.logger import get_logger
-from traceloom.domain.pathlet import Observation, PathletMeta
+from traceloom.domain.pathlet import Observation
 from traceloom.domain.pathlet import Pathlet
 
 # 获取日志实例
@@ -698,7 +698,7 @@ class HoloWANTrace:
 
     def extended_sliding_windows(
         self, window_size: int = 100, extension_size: int = 10, step: int = 50
-    ) -> Iterator[tuple[PathletMeta, "Pathlet"]]:
+    ) -> Iterator[Pathlet]:
         """生成带延长数据点的滑动窗口
 
         生成滑动窗口（长度=100，步长=50），并在每个窗口后添加10个延长数据点，不应用过滤。
@@ -712,20 +712,22 @@ class HoloWANTrace:
                 步长，默认值为 50
 
         Returns:
-            Iterator[tuple[PathletMeta, Pathlet]]
-                带延长数据点的滑动窗口的迭代器，每个元素为 (PathletMeta, Pathlet) 元组
+            Iterator[Pathlet]
+                带延长数据点的滑动窗口的迭代器，每个元素为 Pathlet 对象
 
         Raises:
             ValidationError
                 如果 window_size、extension_size 或 step 不是正整数
 
         示例:
-            for pathlet_meta, pathlet in trace.extended_sliding_windows():
-                print(f"Trace name: {pathlet_meta.trace_name}")
-                print(f"Start index: {pathlet_meta.start_index}")
+            for pathlet in trace.extended_sliding_windows():
+                print(f"Trace name: {pathlet.trace_name}")
+                print(f"Start index: {pathlet.start_index}")
                 print(f"Pathlet ID: {pathlet.pathlet_id}")
-                print(f"Observations count: {len(pathlet_meta.observations)}")  # 输出: 110
+                print(f"Observations count: {len(pathlet.observations)}")  # 输出: 110
         """
+
+        from traceloom.domain.pathlet import BodyObservations, TailObservations
 
         if window_size <= 0 or extension_size <= 0 or step <= 0:
             raise ValidationError("window_size, extension_size and step must be positive integers.")
@@ -743,23 +745,20 @@ class HoloWANTrace:
             observations = [point.to_observation() for point in window]
             # Create Pathlet object
             pathlet_id = f"{self.file_name}_{start}"
-            # Create PathletMeta object
-            pathlet_meta = PathletMeta(
-                pathlet_id=pathlet_id,
-                trace_name=self.file_name,  # Use test_name as trace_name
-                start_index=start,
-                is_valid=True,  # Default to valid, filtering is handled elsewhere
-                observations=observations,
-            )
+
+            # 分割观测数据为body和tail
+            body_observations = observations[:window_size]
+            tail_observations = observations[window_size:]
 
             pathlet = Pathlet(
                 pathlet_id=pathlet_id,
                 trace_name=self.file_name,
                 start_index=start,
-                body=pathlet_meta.get_body_observations(),
-                tail=pathlet_meta.get_tail_observations(),
+                body=BodyObservations(observations=body_observations),
+                tail=TailObservations(observations=tail_observations),
+                is_valid=True,  # Default to valid, filtering is handled elsewhere
             )
-            yield pathlet_meta, pathlet
+            yield pathlet
             start += step
 
     # def filtered_sliding_windows(self, window_size: int = 100, step: int = 50) -> Iterator[List[HoloWANPoint]]:
@@ -789,7 +788,7 @@ class HoloWANTrace:
 
     def filtered_extended_sliding_windows(
         self, window_size: int = 100, extension_size: int = 10, step: int = 50
-    ) -> Iterator[tuple[PathletMeta, "Pathlet"]]:
+    ) -> Iterator[Pathlet]:
         """生成过滤后的带延长数据点的滑动窗口
 
         生成带延长数据点的滑动窗口并应用质量过滤器：
@@ -806,22 +805,20 @@ class HoloWANTrace:
                 步长，默认值为 50
 
         Returns:
-            Iterator[tuple[PathletMeta, Pathlet]]
-                过滤后的带延长数据点的滑动窗口的迭代器，每个元素为 (PathletMeta, Pathlet) 元组
+            Iterator[Pathlet]
+                过滤后的带延长数据点的滑动窗口的迭代器，每个元素为 Pathlet 对象
 
         示例:
-            valid_pairs = list(trace.filtered_extended_sliding_windows())
-            print(f"Valid pairs: {len(valid_pairs)}")
-            print(f"Pathlet ID: {valid_pairs[0][1].pathlet_id}")
-            print(f"Observations count: {len(valid_pairs[0][0].observations)}")  # 输出: 110
+            valid_pathlets = list(trace.filtered_extended_sliding_windows())
+            print(f"Valid pathlets: {len(valid_pathlets)}")
+            print(f"Pathlet ID: {valid_pathlets[0].pathlet_id}")
+            print(f"Observations count: {len(valid_pathlets[0].observations)}")  # 输出: 110
         """
-        from traceloom.domain.pathlet import Pathlet
-
-        for pathlet_meta, pathlet in self.extended_sliding_windows(window_size, extension_size, step):
+        for pathlet in self.extended_sliding_windows(window_size, extension_size, step):
             # Convert Observation objects back to HoloWANPoint objects for validation
-            window_points = [HoloWANPoint.from_observation(obs) for obs in pathlet_meta.observations]
+            window_points = [HoloWANPoint.from_observation(obs) for obs in pathlet.observations]
             if _is_window_valid(window_points, check_size=window_size):
-                yield pathlet_meta, pathlet
+                yield pathlet
 
     # def get_filtered_windows_with_stats(
     #     self, window_size: int = 100, step: int = 50
@@ -894,7 +891,7 @@ class HoloWANTrace:
 
     def get_filtered_extended_windows_with_stats(
         self, window_size: int = 100, extension_size: int = 10, step: int = 50
-    ) -> tuple[List[tuple[PathletMeta, "Pathlet"]], dict]:
+    ) -> tuple[List[Pathlet], dict]:
         """获取过滤后的带延长数据点的窗口和统计信息
 
         返回所有有效的带延长数据点的窗口和详细的过滤统计信息。
@@ -908,8 +905,8 @@ class HoloWANTrace:
                 步长，默认值为 50
 
         Returns:
-            tuple[List[tuple[PathletMeta, Pathlet]], dict]
-                - 有效的带延长数据点的窗口列表，每个元素为 (PathletMeta, Pathlet) 元组
+            tuple[List[Pathlet], dict]
+                - 有效的带延长数据点的窗口列表，每个元素为 Pathlet 对象
                 - 统计信息字典，包含以下键：
                     - total_windows: 总窗口数
                     - valid_windows: 有效窗口数
@@ -918,10 +915,10 @@ class HoloWANTrace:
                     - valid_ratio: 有效窗口比例
 
         示例:
-            valid_pairs, stats = trace.get_filtered_extended_windows_with_stats()
+            valid_pathlets, stats = trace.get_filtered_extended_windows_with_stats()
             print(f"Valid ratio: {stats['valid_ratio']:.2f}")
-            print(f"Pathlet ID: {valid_pairs[0][1].pathlet_id}")
-            print(f"Observations count: {len(valid_pairs[0][0].observations)}")  # 输出: 110
+            print(f"Pathlet ID: {valid_pathlets[0].pathlet_id}")
+            print(f"Observations count: {len(valid_pathlets[0].observations)}")  # 输出: 110
         """
         from traceloom.domain.pathlet import Pathlet
 
@@ -932,11 +929,11 @@ class HoloWANTrace:
 
         valid_windows = []
 
-        for pathlet_meta, pathlet in self.extended_sliding_windows(window_size, extension_size, step):
+        for pathlet in self.extended_sliding_windows(window_size, extension_size, step):
             total += 1
 
             # Convert Observation objects back to HoloWANPoint objects for validation
-            window_points = [HoloWANPoint.from_observation(obs) for obs in pathlet_meta.observations]
+            window_points = [HoloWANPoint.from_observation(obs) for obs in pathlet.observations]
 
             # 只检查窗口的前 window_size 个数据点
             check_window = window_points[:window_size]
@@ -958,7 +955,7 @@ class HoloWANTrace:
 
             # If passed all checks
             valid += 1
-            valid_windows.append((pathlet_meta, pathlet))
+            valid_windows.append(pathlet)
 
         stats = {
             "total_windows": total,

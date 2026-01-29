@@ -7,8 +7,7 @@
 from typing import List
 
 from traceloom.core.logger import logger
-from traceloom.domain.pathlet import BodyObservations, TailObservations
-from traceloom.domain.raw_trace import RawTraceSegment as RawProfile
+from traceloom.domain.pathlet import BodyObservations, TailObservations, Pathlet
 from traceloom.storage.pathlet_storage import PathletStatistics
 
 
@@ -29,7 +28,7 @@ class Stitcher:
         """初始化绣织引擎"""
         pass
 
-    def stitch(self, state_sequence: List[int], duration: int) -> List[RawProfile]:
+    def stitch(self, state_sequence: List[int], duration: int) -> List[Pathlet]:
         """根据状态序列和持续时间生成网络剖面
 
         参数:

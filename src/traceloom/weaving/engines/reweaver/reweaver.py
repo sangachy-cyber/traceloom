@@ -9,18 +9,10 @@ import numpy as np
 
 from traceloom.core.exceptions import SplicingError
 from traceloom.core.logger import logger
-from traceloom.domain.pathlet import BodyObservations, Observation
-from traceloom.domain.raw_trace import RawTraceSegment as RawProfile
+from traceloom.domain.pathlet import BodyObservations, Observation, Pathlet
 from traceloom.storage.pathlet_storage import PathletStatistics
 
 
-# 为缺少的类创建简单的替代实现
-class PathletInfo:
-    """径元信息"""
-
-    def __init__(self, pathlet_id, state_id):
-        self.pathlet_id = pathlet_id
-        self.state_id = state_id
 
 
 class ProfileSequence:
@@ -38,12 +30,12 @@ class Reweaver:
 
     示例:
         from traceloom.weaving.reweave.reweaver import Reweaver
-        from training.common.profile import RawProfile, ContextData, ContinuationData
+        from training.common.profile import Pathlet, ContextData, ContinuationData
         from datetime import datetime
 
         # 准备两个网络剖面序列
         seq1 = [
-            RawProfile(
+            Pathlet(
                 profile_id=f"p1_{i}",
                 timestamp=datetime.now() + timedelta(seconds=i),
                 context_data=ContextData(
@@ -59,7 +51,7 @@ class Reweaver:
         ]
 
         seq2 = [
-            RawProfile(
+            Pathlet(
                 profile_id=f"p2_{i}",
                 timestamp=datetime.now() + timedelta(seconds=10+i),
                 context_data=ContextData(
@@ -108,7 +100,7 @@ class Reweaver:
         """
         return start + (end - start) * (step / self.transition_steps)
 
-    def _find_optimal_offset(self, profile_a: RawProfile, profile_b: RawProfile) -> int:
+    def _find_optimal_offset(self, profile_a: Pathlet, profile_b: Pathlet) -> int:
         """查找最佳切入点t*，实现动态对齐（安全偏移量）
 
         参数:
@@ -193,7 +185,7 @@ class Reweaver:
 
         return interpolated
 
-    def _extract_profile_segment(self, profile: RawProfile, start_offset: int) -> Tuple[BodyObservations, PathletStatistics]:
+    def _extract_profile_segment(self, profile: Pathlet, start_offset: int) -> Tuple[BodyObservations, PathletStatistics]:
         """从profile中提取从start_offset开始的100个点作为新的上下文数据
 
         参数:
@@ -284,14 +276,14 @@ class Reweaver:
 
         return noise
 
-    def _apply_psd_noise(self, profile: RawProfile) -> RawProfile:
+    def _apply_psd_noise(self, profile: Pathlet) -> Pathlet:
         """应用PSD噪声到网络剖面，保留Jitter
 
         参数:
             profile: 原始网络剖面
 
         返回:
-            RawProfile: 应用了PSD噪声的网络剖面
+            Pathlet: 应用了PSD噪声的网络剖面
         """
         # 提取原始数据
         original_delay_up = np.array(profile.ctx_10s.delay_up)
@@ -349,8 +341,8 @@ class Reweaver:
             bw_down_max=np.max(new_bw_down),
         )
 
-        # 创建新的RawProfile
-        new_profile = RawProfile(
+        # 创建新的Pathlet
+        new_profile = Pathlet(
             trace_name=profile.trace_name,
             start_index=profile.start_index,
             ctx_10s=new_ctx_10s,
@@ -361,11 +353,11 @@ class Reweaver:
 
         return new_profile
 
-    def _validate_profile(self, profile: Union[Dict, RawProfile]) -> None:
+    def _validate_profile(self, profile: Union[Dict, Pathlet]) -> None:
         """验证网络剖面参数
 
         参数:
-            profile: 网络剖面（字典或RawProfile对象）
+            profile: 网络剖面（字典或Pathlet对象）
 
         异常:
             ValueError: 参数无效时抛出
@@ -381,7 +373,7 @@ class Reweaver:
             if len(profile["cont_1s"].delay_up) != 10:
                 raise ValueError(f"延续数据长度无效: {len(profile['cont_1s'].delay_up)}")
         else:
-            # 处理RawProfile对象类型的输入
+            # 处理Pathlet对象类型的输入
             if profile.ctx_10s is None or profile.cont_1s is None:
                 raise ValueError("网络剖面缺少必要数据")
             # 检查上下文数据长度
@@ -391,13 +383,13 @@ class Reweaver:
                 raise ValueError(f"延续数据长度无效: {len(profile.cont_1s.delay_up)}")
 
     def blend_tails(
-        self, profile1: Union[Dict, RawProfile], profile2: Union[Dict, RawProfile]
+        self, profile1: Union[Dict, Pathlet], profile2: Union[Dict, Pathlet]
     ) -> Tuple[List[float], List[float], List[float], List[float], List[float], List[float]]:
         """融合两个网络剖面的尾部
 
         参数:
-            profile1: 第一个网络剖面（字典或RawProfile对象）
-            profile2: 第二个网络剖面（字典或RawProfile对象）
+            profile1: 第一个网络剖面（字典或Pathlet对象）
+            profile2: 第二个网络剖面（字典或Pathlet对象）
 
         返回:
             Tuple[List[float], List[float], List[float], List[float], List[float], List[float]]: 融合后的六维数据
@@ -502,16 +494,16 @@ class Reweaver:
         return True
 
     def _generate_transition_profiles(
-        self, start_profile: Union[Dict, RawProfile], end_profile: Union[Dict, RawProfile]
-    ) -> List[Union[Dict, RawProfile]]:
+        self, start_profile: Union[Dict, Pathlet], end_profile: Union[Dict, Pathlet]
+    ) -> List[Union[Dict, Pathlet]]:
         """生成过渡网络剖面
 
         参数:
-            start_profile: 起始网络剖面（字典或RawProfile对象）
-            end_profile: 结束网络剖面（字典或RawProfile对象）
+            start_profile: 起始网络剖面（字典或Pathlet对象）
+            end_profile: 结束网络剖面（字典或Pathlet对象）
 
         返回:
-            List[Union[Dict, RawProfile]]: 过渡网络剖面列表
+            List[Union[Dict, Pathlet]]: 过渡网络剖面列表
         """
         transition_profiles = []
 
@@ -590,19 +582,19 @@ class Reweaver:
         return transition_profiles
 
     def splice(
-        self, profile_list1: List[Union[Dict, RawProfile]], profile_list2: List[Union[Dict, RawProfile]]
-    ) -> List[Union[Dict, RawProfile]]:
+        self, profile_list1: List[Union[Dict, Pathlet]], profile_list2: List[Union[Dict, Pathlet]]
+    ) -> List[Union[Dict, Pathlet]]:
         """拼接两个网络剖面序列，实现动态对齐和Hermite插值
 
         示例:
             spliced_seq = splicer.splice(seq1, seq2)
 
         参数:
-            profile_list1: 第一个网络剖面序列（字典或RawProfile对象列表）
-            profile_list2: 第二个网络剖面序列（字典或RawProfile对象列表）
+            profile_list1: 第一个网络剖面序列（字典或Pathlet对象列表）
+            profile_list2: 第二个网络剖面序列（字典或Pathlet对象列表）
 
         返回:
-            List[Union[Dict, RawProfile]]: 拼接后的网络剖面序列
+            List[Union[Dict, Pathlet]]: 拼接后的网络剖面序列
         """
         if not profile_list1 or not profile_list2:
             raise ValueError("输入的网络剖面序列不能为空")
@@ -645,17 +637,17 @@ class Reweaver:
         # 如果所有重试都失败，抛出异常
         raise SplicingError(f"拼接失败，已重试 {max_retries} 次")
 
-    def splice_sequences(self, sequences: List[List[RawProfile]]) -> List[RawProfile]:
+    def splice_sequences(self, sequences: List[List[Pathlet]]) -> List[Pathlet]:
         """拼接多个网络剖面序列
 
         示例:
             from traceloom.weaving.reweave.reweaver import Reweaver
-            from training.common.profile import RawProfile, ContextData, ContinuationData
+            from training.common.profile import Pathlet, ContextData, ContinuationData
             from datetime import datetime
 
             # 准备三个网络剖面序列
             seq1 = [
-                RawProfile(
+                Pathlet(
                     profile_id=f"p1_{i}",
                     timestamp=datetime.now() + timedelta(seconds=i),
                     context_data=ContextData(
@@ -671,7 +663,7 @@ class Reweaver:
             ]
 
             seq2 = [
-                RawProfile(
+                Pathlet(
                     profile_id=f"p2_{i}",
                     timestamp=datetime.now() + timedelta(seconds=10+i),
                     context_data=ContextData(
@@ -687,7 +679,7 @@ class Reweaver:
             ]
 
             seq3 = [
-                RawProfile(
+                Pathlet(
                     profile_id=f"p3_{i}",
                     timestamp=datetime.now() + timedelta(seconds=20+i),
                     context_data=ContextData(
@@ -713,7 +705,7 @@ class Reweaver:
             sequences: 网络剖面序列列表
 
         返回:
-            List[RawProfile]: 拼接后的网络剖面序列
+            List[Pathlet]: 拼接后的网络剖面序列
         """
         if not sequences:
             raise ValueError("输入的网络剖面序列列表不能为空")
@@ -768,7 +760,7 @@ class Reweaver:
             },
         )
 
-    def generate_trace(self, pathlet_sequence: List[PathletInfo], pathlet_storage: any) -> List[List[float]]:
+    def generate_trace(self, pathlet_sequence: List[Pathlet], pathlet_storage: any) -> List[List[float]]:
         """生成合成轨迹
 
         根据径元序列生成6列HoloWAN格式的合成轨迹数据
@@ -778,7 +770,7 @@ class Reweaver:
             from traceloom.io.pathlet_storage import PathletStorage
 
             pathlet_storage = PathletStorage()
-            pathlet_sequence = [PathletInfo(...), PathletInfo(...)]
+            pathlet_sequence = [Pathlet(...), Pathlet(...)]
             reweaver = Reweaver()
             trace_data = reweaver.generate_trace(pathlet_sequence, pathlet_storage)
 
@@ -813,7 +805,7 @@ class Reweaver:
         logger.info(f"成功生成合成轨迹，共包含 {len(trace_data)} 个采样点")
         return trace_data
 
-    def _get_profiles_from_storage(self, pathlet_sequence: List[PathletInfo], pathlet_storage: any) -> List:
+    def _get_profiles_from_storage(self, pathlet_sequence: List[Pathlet], pathlet_storage: any) -> List:
         """从径元存储中获取每个径元的详细数据"""
         all_profiles = []
         for pathlet_info in pathlet_sequence:
@@ -824,7 +816,7 @@ class Reweaver:
                 logger.warning(f"未找到径元{pathlet_info.pathlet_id} 的数据，跳过")
         return all_profiles
 
-    def _generate_default_trace(self, pathlet_sequence: List[PathletInfo]) -> List[List[float]]:
+    def _generate_default_trace(self, pathlet_sequence: List[Pathlet]) -> List[List[float]]:
         """生成默认的合成轨迹数据"""
         logger.warning("无法获取任何径元的详细数据，生成默认合成轨迹")
         default_trace = []
@@ -844,7 +836,7 @@ class Reweaver:
                 default_trace.append([timestamp, delay, jitter, loss_rate, bandwidth, other])
         return default_trace
 
-    def _generate_trace_from_single_profile(self, profile: Union[Dict, RawProfile]) -> List[List[float]]:
+    def _generate_trace_from_single_profile(self, profile: Union[Dict, Pathlet]) -> List[List[float]]:
         """从单个径元生成轨迹数据"""
         trace_data = []
         # 获取上下文数据
@@ -902,7 +894,7 @@ class Reweaver:
 
         return spliced_profiles
 
-    def _generate_trace_from_profiles(self, profiles: List[Union[Dict, RawProfile]]) -> List[List[float]]:
+    def _generate_trace_from_profiles(self, profiles: List[Union[Dict, Pathlet]]) -> List[List[float]]:
         """从多个径元生成轨迹数据"""
         trace_data = []
         for profile in profiles:

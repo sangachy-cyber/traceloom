@@ -8,6 +8,10 @@ import time
 from pathlib import Path
 from typing import Any, Dict
 
+# 添加src到Python路径
+src_path = Path(__file__).parent.parent / "src"
+sys.path.insert(0, str(src_path))
+
 # 检查 requests 库是否安装
 try:
     import requests
@@ -15,16 +19,20 @@ except ImportError:
     print("错误: requests 库未安装，请先运行 'uv add requests' 或 'pip install requests' 安装")
     sys.exit(1)
 
+# 配置日志，只输出到文件，不输出到控制台
 from loguru import logger
 
+logger.remove()  # 移除默认的控制台输出
+
+# 先创建输出目录，避免导入settings时的依赖问题
+output_dir = Path(__file__).parent.parent / "data" / "outputs"
+output_dir.mkdir(parents=True, exist_ok=True)
+
+# 配置日志文件
+logger.add(output_dir / "api_example.log", rotation="10 MB", compression="zip", level="INFO")
+
+# 导入settings
 from traceloom.core.config import settings
-
-# 添加src到Python路径
-src_path = Path(__file__).parent.parent / "src"
-sys.path.insert(0, str(src_path))
-
-# 配置日志
-logger.add(settings.OUTPUT_DIR / "api_example.log", rotation="10 MB", compression="zip", level=settings.LOG_LEVEL)
 
 # API 基础 URL
 API_BASE_URL = "http://localhost:8000/api/v1"
@@ -112,9 +120,9 @@ def stop_task(engine: str, task_id: str) -> Dict[str, Any]:
             return {
                 "task_id": task_id,
                 "status": task_status.get("status"),
-                "message": f"任务状态为 {task_status.get('status')}，不需要停止"
+                "message": f"任务状态为 {task_status.get('status')}，不需要停止",
             }
-        
+
         response = requests.delete(f"{API_BASE_URL}/{engine}/{task_id}")
         response.raise_for_status()
         return response.json()

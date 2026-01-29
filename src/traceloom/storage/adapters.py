@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple
 
 import pandas as pd
 
-from traceloom.domain.pathlet import BodyObservations, Observation, Pathlet, PathletMeta, TailObservations
+from traceloom.domain.pathlet import BodyObservations, Observation, Pathlet, TailObservations
 
 
 class PathletStorageAdapter:
@@ -21,21 +21,18 @@ class PathletStorageAdapter:
         adapter = PathletStorageAdapter()
 
         # 将 Pathlet 对象转换为存储结构
-        metadata_df, points_df = adapter.pathlets_to_storage(pathlets, pathlet_meta_map)
+        metadata_df, points_df = adapter.pathlets_to_storage(pathlets)
 
         # 将存储结构转换为 Pathlet 对象
         pathlets = adapter.storage_to_pathlets(metadata_df, points_df)
     """
 
     @staticmethod
-    def pathlets_to_storage(
-        pathlets: List[Pathlet], pathlet_meta_map: Dict[str, PathletMeta]
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def pathlets_to_storage(pathlets: List[Pathlet]) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """将 Pathlet 对象转换为存储结构
 
         参数:
             pathlets: Pathlet 列表
-            pathlet_meta_map: 径元ID到PathletMeta的映射
 
         返回:
             Tuple[pd.DataFrame, pd.DataFrame]: 元数据和点数据的 DataFrame
@@ -44,16 +41,15 @@ class PathletStorageAdapter:
         unique_points = {}
 
         for pathlet in pathlets:
-            meta = pathlet_meta_map[pathlet.pathlet_id]
-            trace_name = meta.trace_name
-            start_index = meta.start_index
+            trace_name = pathlet.trace_name
+            start_index = pathlet.start_index
             state_id = pathlet.state_label.state_id if pathlet.state_label else -1
 
             # 提取元数据
             metadata.append(
                 {
                     "pathlet_id": pathlet.pathlet_id,
-                    "is_valid": meta.is_valid,
+                    "is_valid": pathlet.is_valid,
                     "state_id": state_id,
                     "trace_name": trace_name,
                     "start_index": start_index,
@@ -61,7 +57,7 @@ class PathletStorageAdapter:
             )
 
             # 提取点数据（去重处理）
-            for i, obs in enumerate(meta.observations):
+            for i, obs in enumerate(pathlet.observations):
                 trace_index = start_index + i
                 key = (trace_name, trace_index)
 
@@ -102,7 +98,7 @@ class PathletStorageAdapter:
         points_by_pathlet = {}
         # 兼容旧的字段名
         id_column = "containing_pathlet_ids" if "containing_pathlet_ids" in points_df.columns else "pathlet_ids"
-        
+
         for _, row in points_df.iterrows():
             for pathlet_id in row[id_column]:
                 if pathlet_id not in points_by_pathlet:
@@ -143,9 +139,12 @@ class PathletStorageAdapter:
             # 创建 Pathlet 对象
             pathlet = Pathlet(
                 pathlet_id=pathlet_id,
+                trace_name=metadata_row.get("trace_name", ""),
+                start_index=start_index,
                 body=BodyObservations(observations=body_observations),
                 tail=TailObservations(observations=tail_observations),
                 state_label=None,  # 可以根据需要从 metadata_row 中恢复
+                is_valid=metadata_row.get("is_valid", True),
             )
 
             pathlets.append(pathlet)

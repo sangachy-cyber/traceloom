@@ -15,7 +15,7 @@ import pyarrow.parquet as pq
 
 from traceloom.core.config import settings
 from traceloom.core.logger import logger
-from traceloom.domain.pathlet import BodyObservations, Observation, Pathlet, PathletMeta, TailObservations
+from traceloom.domain.pathlet import BodyObservations, Observation, Pathlet, TailObservations
 from traceloom.storage.adapters import PathletStorageAdapter
 
 
@@ -110,10 +110,10 @@ class PathletStorage:
             bool: 缓存是否有效
         """
         import time
-        
+
         if cache_key not in self._cache_timestamp:
             return False
-        
+
         current_time = time.time()
         return current_time - self._cache_timestamp[cache_key] < self._cache_expiry_seconds
 
@@ -124,6 +124,7 @@ class PathletStorage:
             cache_key: 缓存键
         """
         import time
+
         self._cache_timestamp[cache_key] = time.time()
 
     def clear_cache(self) -> None:
@@ -144,18 +145,17 @@ class PathletStorage:
         self._cache_timestamp.clear()
         logger.info("缓存已清除")
 
-    def save_pathlets(self, pathlets: List[Pathlet], pathlet_meta_map: Dict[str, PathletMeta]) -> None:
+    def save_pathlets(self, pathlets: List[Pathlet]) -> None:
         """保存Pathlet数据。
 
         将Pathlet数据分离为元信息和点数据，分别写入Parquet文件。
 
         参数:
             pathlets: Pathlet列表
-            pathlet_meta_map: 径元ID到PathletMeta的映射
 
         示例:
             from traceloom.storage.pathlet_storage import PathletStorage
-            from traceloom.domain.pathlet import Pathlet, BodyObservations, TailObservations, PathletMeta, Observation
+            from traceloom.domain.pathlet import Pathlet, BodyObservations, TailObservations, Observation
 
             # 初始化存储
             storage = PathletStorage()
@@ -163,37 +163,22 @@ class PathletStorage:
             # 准备Pathlet数据
             pathlet1 = Pathlet(
                 pathlet_id="pathlet_001",
+                trace_name="trace_001",
+                start_index=0,
                 body=BodyObservations(),
                 tail=TailObservations()
             )
 
             pathlet2 = Pathlet(
                 pathlet_id="pathlet_002",
+                trace_name="trace_002",
+                start_index=100,
                 body=BodyObservations(),
                 tail=TailObservations()
             )
 
-            # 准备pathlet_meta_map（实际使用中应包含真实的观测数据）
-            # 创建观测数据
-            observations = [Observation() for _ in range(110)]
-
-            pathlet_meta_map = {
-                "pathlet_001": PathletMeta(
-                    trace_name="trace_001",
-                    start_index=0,
-                    is_valid=True,
-                    observations=observations
-                ),
-                "pathlet_002": PathletMeta(
-                    trace_name="trace_002",
-                    start_index=100,
-                    is_valid=True,
-                    observations=observations
-                )
-            }
-
             # 保存Pathlet数据
-            storage.save_pathlets([pathlet1, pathlet2], pathlet_meta_map)
+            storage.save_pathlets([pathlet1, pathlet2])
         """
         if not pathlets:
             logger.warning("没有Pathlet数据可保存")
@@ -205,7 +190,7 @@ class PathletStorage:
         logger.info(f"开始保存{len(valid_pathlets)} 个有效Pathlet数据")
 
         # 使用适配器转换数据
-        metadata_df, points_df = self.storage_adapter.pathlets_to_storage(valid_pathlets, pathlet_meta_map)
+        metadata_df, points_df = self.storage_adapter.pathlets_to_storage(valid_pathlets)
 
         # 写入Parquet文件
         self._write_metadata(metadata_df)
@@ -251,14 +236,14 @@ class PathletStorage:
 
         # 读取元信息，使用谓词下推
         metadata_table = pq.read_table(self.metadata_file)
-        
+
         # 按状态ID筛选
         if state_id is not None:
             metadata_table = metadata_table.filter(pa.compute.equal(metadata_table["state_id"], state_id))
             if metadata_table.num_rows == 0:
                 logger.info(f"没有找到状态ID为{state_id} 的Pathlet数据")
                 return []
-        
+
         metadata_df = metadata_table.to_pandas()
 
         # 只有当有元数据时才读取点数据
@@ -271,6 +256,13 @@ class PathletStorage:
 
         # 使用适配器转换数据
         pathlets = self.storage_adapter.storage_to_pathlets(metadata_df, points_df)
+
+        # 补充trace_name、start_index和is_valid字段
+        for i, (_, metadata_row) in enumerate(metadata_df.iterrows()):
+            if i < len(pathlets):
+                pathlets[i].trace_name = metadata_row.get("trace_name", "")
+                pathlets[i].start_index = metadata_row.get("start_index", 0)
+                pathlets[i].is_valid = metadata_row.get("is_valid", True)
 
         logger.info(f"成功加载 {len(pathlets)} 个Pathlet数据")
         return pathlets
@@ -296,7 +288,7 @@ class PathletStorage:
                     "pathlet_id": pathlet.pathlet_id,
                     "is_valid": True,  # 假设所有Pathlet都是有效的
                     "state_id": state_id,  # 默认为-1表示未标记
-                    "source_trace": profile.trace_name,
+                    "trace_name": profile.trace_name,
                     "start_index": profile.start_index,
                 }
             )
@@ -381,24 +373,19 @@ class PathletStorage:
         if metadata.empty:
             logger.warning("无数据可写入对外清单")
             return
-            
+
         logger.info(f"写入对外清单到 {self.pathlet_dir / 'pathlets.parquet'}")
-        
+
         # 生成对外清单DataFrame
-        external_df = metadata[[
-            "pathlet_id",
-            "state_id",
-            "trace_name",
-            "start_index"
-        ]].copy()
+        external_df = metadata[["pathlet_id", "state_id", "trace_name", "start_index"]].copy()
         external_df.rename(columns={"trace_name": "source_file"}, inplace=True)
-        
+
         # 转换为Arrow表
         table = pa.Table.from_pandas(external_df)
-        
+
         # 写入Parquet文件
         pq.write_table(table, self.pathlet_dir / "pathlets.parquet", compression="ZSTD")
-        
+
         logger.info(f"成功写入 {len(external_df)} 条对外清单记录")
 
     def _write_points(self, points: pd.DataFrame) -> None:
@@ -410,7 +397,7 @@ class PathletStorage:
         if points.empty:
             logger.warning("无点数据可写入")
             return
-            
+
         logger.info(f"写入点数据到 {self.points_file}")
 
         # 确保trace_index列存在并排序
@@ -426,7 +413,7 @@ class PathletStorage:
             root_path=str(self.points_file),
             partition_cols=["trace_name"],
             compression="ZSTD",
-            use_dictionary=True
+            use_dictionary=True,
         )
 
         logger.info(f"成功写入 {len(points)} 条点数据")
@@ -592,7 +579,7 @@ class PathletStorage:
             return None
 
         points_df = self._read_points()
-        
+
         # 检查是否存在点数据
         if points_df.empty:
             logger.warning(f"点数据文件为空")
@@ -600,7 +587,7 @@ class PathletStorage:
 
         # 确定使用哪个字段来存储径元ID
         id_column = "containing_pathlet_ids" if "containing_pathlet_ids" in points_df.columns else "pathlet_ids"
-        
+
         # 检查数组字段是否包含指定的pathlet_id
         if id_column in points_df.columns:
             pathlet_points = points_df[points_df[id_column].apply(lambda x: pathlet_id in x)]

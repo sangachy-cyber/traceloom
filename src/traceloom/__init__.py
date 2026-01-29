@@ -16,8 +16,16 @@ __description__ = "Weaving programmable paths from real traces"
 from traceloom.domain.pattern import Pattern
 from traceloom.weaving.engine import WeavingEngine
 
-# 创建默认的 WeavingEngine 实例
-weaving_engine = WeavingEngine()
+# 延迟初始化 WeavingEngine 实例
+_weaving_engine = None
+
+
+def _get_weaving_engine():
+    """获取 WeavingEngine 实例（延迟初始化）"""
+    global _weaving_engine
+    if _weaving_engine is None:
+        _weaving_engine = WeavingEngine()
+    return _weaving_engine
 
 
 # 核心织径函数
@@ -36,10 +44,10 @@ def reweave(input_file: str, output: str = "output.txt") -> dict:
         content = f.read()
 
     # 使用 WeavingEngine 进行重织
-    result = weaving_engine.weave(content, mode="reweave")
+    result = _get_weaving_engine().weave(content, mode="reweave")
 
     # 保存结果
-    weaving_engine.save_result(result, output)
+    _get_weaving_engine().save_result(result, output)
 
     return result
 
@@ -57,10 +65,10 @@ def embroider(input_pattern: str, output: str = "output.txt") -> dict:
         dict: 包含路径信息的字典
     """
     # 使用 WeavingEngine 进行绣织
-    result = weaving_engine.weave(input_pattern, mode="stitch")
+    result = _get_weaving_engine().weave(input_pattern, mode="stitch")
 
     # 保存结果
-    weaving_engine.save_result(result, output)
+    _get_weaving_engine().save_result(result, output)
 
     return result
 
@@ -76,10 +84,10 @@ def dream(input_pattern: str, output: str = "output.txt") -> dict:
         dict: 包含路径信息的字典
     """
     # 使用 WeavingEngine 进行广织
-    result = weaving_engine.weave(input_pattern, mode="dream")
+    result = _get_weaving_engine().weave(input_pattern, mode="dream")
 
     # 保存结果
-    weaving_engine.save_result(result, output)
+    _get_weaving_engine().save_result(result, output)
 
     return result
 

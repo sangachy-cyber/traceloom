@@ -128,20 +128,24 @@ class Pathlet:
 
     Attributes:
         pathlet_id: 径元 ID
+        trace_name: 逻辑轨迹名（不含路径/扩展名）
+        start_index: 径元在轨迹中的起始索引
         body: 主体观测数据
         tail: 融尾观测数据
         state_label: 状态标签（可选）
+        is_valid: 是否通过质量过滤
 
     Examples:
         # 创建径元
         pathlet = Pathlet(
             pathlet_id="pathlet_1",
+            trace_name="trace_001",
+            start_index=0,
             body=BodyObservations(),
             tail=TailObservations()
         )
     """
 
-    """径元在轨迹中的起始索引"""
     pathlet_id: str
     """径元 ID"""
     trace_name: str
@@ -157,65 +161,11 @@ class Pathlet:
     """状态标签（可选）"""
     is_valid: bool = True
     """是否通过质量过滤"""
-    observations: List[Observation] = field(default_factory=list)
-    """观测数据列表，长度为110"""
 
-@dataclass
-class PathletMeta:
-    """径元元数据
+    @property
+    def observations(self) -> List[Observation]:
+        """观测数据列表，长度为110
 
-    径元元数据包含径元的基本信息和观测数据，用于存储和处理。
-
-    Attributes:
-        trace_name: 逻辑轨迹名（不含路径/扩展名）
-        start_index: 径元在轨迹中的起始索引
-        is_valid: 是否通过质量过滤
-        observations: 观测数据列表，长度为110
-
-    Examples:
-        # 创建径元元数据
-        from traceloom.domain.pathlet import Observation
-
-        observations = [Observation() for _ in range(110)]
-        pathlet_meta = PathletMeta(
-            trace_name="campus",
-            start_index=1250,
-            is_valid=True,
-            observations=observations
-        )
-    """
-    pathlet_id: str
-    """径元 ID"""
-    trace_name: str
-    """逻辑轨迹名（不含路径/扩展名）"""
-    start_index: int
-    """径元在轨迹中的起始索引"""
-
-    is_valid: bool = True
-    """是否通过质量过滤"""
-    observations: List[Observation] = field(default_factory=list)
-    """观测数据列表，长度为110"""
-    state_label: Optional[StateLabel] = None
-    """状态标签（可选）"""
-
-    body: BodyObservations= field(default_factory=list)
-    """主体观测数据"""
-    tail: TailObservations= field(default_factory=list)
-    """融尾观测数据"""
-
-
-    def get_body_observations(self) -> BodyObservations:
-        """获取主体观测数据（前100个）
-
-        Returns:
-            BodyObservations: 主体观测数据
+        由body和tail的观测数据组合而成，避免数据冗余
         """
-        return BodyObservations(observations=self.observations[:100])
-
-    def get_tail_observations(self) -> TailObservations:
-        """获取融尾观测数据（后10个）
-
-        Returns:
-            TailObservations: 融尾观测数据
-        """
-        return TailObservations(observations=self.observations[100:])
+        return self.body.observations + self.tail.observations

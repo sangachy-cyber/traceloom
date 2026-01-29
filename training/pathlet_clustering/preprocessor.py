@@ -9,10 +9,9 @@ from typing import List
 
 from traceloom.core.config import settings
 from traceloom.core.logger import logger
-from traceloom.domain.pathlet import PathletMeta
+
 from traceloom.io import HoloWANTrace
 from traceloom.storage.pathlet_storage import PathletStorage
-from training.pathlet_clustering.pathlet_builder import PathletBuilder
 
 
 class Preprocessor:
@@ -47,18 +46,12 @@ class Preprocessor:
 
         logger.info(f"加载原始轨迹数据，共找到 {len(txt_files)} 个文件")
         pathlet_storage = PathletStorage(self.pathlet_dir)
-        observations = []
         pathlets = []
-        pathlet_meta_map = {}
         for txt_file in txt_files:
             holowan_trace = HoloWANTrace.load(txt_file)
-            observations.extend(holowan_trace.to_observations())
-            for pathlet, pathlet_meta in holowan_trace.extended_sliding_windows():
-                pathlets.append(pathlet)
-                pathlet_meta_map[pathlet_meta.pathlet_id] = pathlet_meta
-            # pathlet_meta = list(holowan_trace.extended_sliding_windows())
-            # pathlet_meta_map = {}
-        pathlet_storage.save_pathlets(pathlets, pathlet_meta_map)
+            pathlets.extend(list(holowan_trace.extended_sliding_windows()))
+
+        pathlet_storage.save_pathlets(pathlets)
         return pathlets
 
     def save_pathlets(self, pathlets: List) -> None:
@@ -97,17 +90,11 @@ class Preprocessor:
                 # 提取 tail 中的观测数据
                 if hasattr(pathlet.tail, "observations") and pathlet.tail.observations:
                     observations.extend(pathlet.tail.observations)
-
-                # 创建 PathletMeta
-                raw_trace_segment = PathletMeta(
-                    trace_name=trace_name, start_index=start_index, observations=observations
-                )
-                raw_trace_segment_map[pathlet.pathlet_id] = raw_trace_segment
             except (ValueError, IndexError):
                 logger.warning(f"无法从径元 ID {pathlet.pathlet_id} 中提取轨迹信息")
 
         # 使用 PathletStorage 保存径元
-        storage.save_pathlets(pathlets, raw_trace_segment_map)
+        storage.save_pathlets(pathlets)
         logger.info("径元保存完成")
 
     def run(self) -> List:

@@ -11,7 +11,7 @@
 import pandas as pd
 import pytest
 
-from traceloom.domain.pathlet import PathletMeta
+from traceloom.domain.pathlet import Pathlet, BodyObservations, TailObservations
 from traceloom.storage.pathlet_storage import PathletStatistics
 
 
@@ -34,19 +34,23 @@ class TestDataConversion:
         # 创建PathletMeta
         # 注意：PathletMeta没有from_dataframe方法，需要手动创建
         from traceloom.domain.pathlet import Observation
+
         observations = []
         for i in range(len(df)):
             row = df.iloc[i]
             obs = Observation(
-                delay_up=row['delay_up'],
-                loss_up=row['loss_up'],
-                bw_up=row['bw_up'],
-                delay_down=row['delay_down'],
-                loss_down=row['loss_down'],
-                bw_down=row['bw_down']
+                delay_up=row["delay_up"],
+                loss_up=row["loss_up"],
+                bw_up=row["bw_up"],
+                delay_down=row["delay_down"],
+                loss_down=row["loss_down"],
+                bw_down=row["bw_down"],
             )
             observations.append(obs)
-        segment = PathletMeta(trace_name="test_trace", start_index=0, observations=observations)
+        # 创建Pathlet，使用前10个观测作为body，后10个作为tail（实际测试中数量可能不足，这里只做示例）
+        body = BodyObservations(observations=observations[:10])
+        tail = TailObservations(observations=observations[10:])
+        segment = Pathlet(pathlet_id="test_pathlet", trace_name="test_trace", start_index=0, body=body, tail=tail)
 
         # 验证丢包率值正确
         assert len(segment.observations) == 3
@@ -70,22 +74,26 @@ class TestDataConversion:
 
         # 创建PathletMeta
         from traceloom.domain.pathlet import Observation
+
         observations = []
         for i in range(len(df)):
             row = df.iloc[i]
             # 模拟带宽为0时丢包率设置为1.0的逻辑
-            loss_up = row['loss_up'] if row['bw_up'] != 0 else 1.0
-            loss_down = row['loss_down'] if row['bw_down'] != 0 else 1.0
+            loss_up = row["loss_up"] if row["bw_up"] != 0 else 1.0
+            loss_down = row["loss_down"] if row["bw_down"] != 0 else 1.0
             obs = Observation(
-                delay_up=row['delay_up'],
+                delay_up=row["delay_up"],
                 loss_up=loss_up,
-                bw_up=row['bw_up'],
-                delay_down=row['delay_down'],
+                bw_up=row["bw_up"],
+                delay_down=row["delay_down"],
                 loss_down=loss_down,
-                bw_down=row['bw_down']
+                bw_down=row["bw_down"],
             )
             observations.append(obs)
-        segment = PathletMeta(trace_name="test_trace", start_index=0, observations=observations)
+        # 创建Pathlet，使用前10个观测作为body，后10个作为tail（实际测试中数量可能不足，这里只做示例）
+        body = BodyObservations(observations=observations[:10])
+        tail = TailObservations(observations=observations[10:])
+        segment = Pathlet(pathlet_id="test_pathlet", trace_name="test_trace", start_index=0, body=body, tail=tail)
 
         # 验证带宽为0时丢包率被设置为1.0
         assert len(segment.observations) == 3
@@ -110,21 +118,32 @@ class TestDataConversion:
 
         # 创建PathletMeta
         from traceloom.domain.pathlet import Observation
+
         observations = []
         for i in range(len(df)):
             row = df.iloc[i]
             obs = Observation(
-                delay_up=row['delay_up'],
-                loss_up=row['loss_up'],
-                bw_up=row['bw_up'],
-                delay_down=row['delay_down'],
-                loss_down=row['loss_down'],
-                bw_down=row['bw_down']
+                delay_up=row["delay_up"],
+                loss_up=row["loss_up"],
+                bw_up=row["bw_up"],
+                delay_down=row["delay_down"],
+                loss_down=row["loss_down"],
+                bw_down=row["bw_down"],
             )
             observations.append(obs)
         # 检查是否有延迟大于2000ms的观测值
         has_large_delay = any(obs.delay_up > 2000 or obs.delay_down > 2000 for obs in observations)
-        segment = PathletMeta(trace_name="test_trace", start_index=0, is_valid=not has_large_delay, observations=observations)
+        # 创建Pathlet，使用前10个观测作为body，后10个作为tail（实际测试中数量可能不足，这里只做示例）
+        body = BodyObservations(observations=observations[:10])
+        tail = TailObservations(observations=observations[10:])
+        segment = Pathlet(
+            pathlet_id="test_pathlet",
+            trace_name="test_trace",
+            start_index=0,
+            body=body,
+            tail=tail,
+            is_valid=not has_large_delay,
+        )
 
         # 验证包含无效延迟的segment被标记为无效
         assert not segment.is_valid
@@ -180,22 +199,26 @@ class TestDataConversion:
 
         # 创建PathletMeta
         from traceloom.domain.pathlet import Observation
+
         observations = []
         for i in range(len(df)):
             row = df.iloc[i]
             obs = Observation(
-                delay_up=row['delay_up'],
-                loss_up=row['loss_up'],
-                bw_up=row['bw_up'],
-                delay_down=row['delay_down'],
-                loss_down=row['loss_down'],
-                bw_down=row['bw_down']
+                delay_up=row["delay_up"],
+                loss_up=row["loss_up"],
+                bw_up=row["bw_up"],
+                delay_down=row["delay_down"],
+                loss_down=row["loss_down"],
+                bw_down=row["bw_down"],
             )
             observations.append(obs)
-        segment = PathletMeta(trace_name="test_trace", start_index=0, observations=observations)
+        # 创建Pathlet，使用前100个观测作为body，后10个作为tail
+        body = BodyObservations(observations=observations[:100])
+        tail = TailObservations(observations=observations[100:])
+        segment = Pathlet(pathlet_id="test_pathlet", trace_name="test_trace", start_index=0, body=body, tail=tail)
 
         # 验证段有效
         assert segment.is_valid
         assert len(segment.observations) == 110
-        assert len(segment.get_body_observations().observations) == 100
-        assert len(segment.get_tail_observations().observations) == 10
+        assert len(segment.body.observations) == 100
+        assert len(segment.tail.observations) == 10
