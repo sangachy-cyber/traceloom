@@ -8,10 +8,11 @@ import json
 import time
 
 from holowan.v2.engine import Engine
+from holowan.v2.engine.classifier import RawByteRule
 from holowan.v2.playback import PlayBack
 
 
-class HoloWANManager:
+class HoloWAN:
     """HoloWAN 设备管理器。
 
     用于管理 HoloWAN 网络损伤仪设备，提供连接设备、绑定 IP 到路径、上传和应用回放文件等功能。
@@ -109,7 +110,7 @@ class HoloWANManager:
             target_ip: 目标 IP 地址
             path_id: 路径 ID
         """
-        last_octet = int(target_ip.split('.')[-1])
+        last_octet = int(target_ip.split(".")[-1])
         hex_value = f"0x{last_octet:02X}"
         label_1 = f"AutoGenFor_{target_ip}_1"
         label_2 = f"AutoGenFor_{target_ip}_2"
@@ -119,7 +120,6 @@ class HoloWANManager:
         self._remove_rule_by_label(port=2, label=label_2)
 
         # 添加新规则
-        from holowan.v2.engine.classifier import RawByteRule
         rule1 = RawByteRule(type=1, action=path_id)
         rule1.add_raw_byte(layer=3, offset=59, mask="0xFF", value=hex_value)
         rule1.set_custom_name(label_1)
@@ -152,11 +152,7 @@ class HoloWANManager:
             time.sleep(2)  # 等待设备处理
 
         # 应用回放
-        result = self.playback.apply_playback_file(
-            engine_id=self.engine_id,
-            path_id=path_id,
-            file_name=playback_name
-        )
+        result = self.playback.apply_playback_file(engine_id=self.engine_id, path_id=path_id, file_name=playback_name)
         if json.loads(result)["code"] != 0:
             raise RuntimeError(f"应用失败: {result}")
 
