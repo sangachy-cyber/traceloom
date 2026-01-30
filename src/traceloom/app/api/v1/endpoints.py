@@ -176,9 +176,9 @@ def weave(request: Request, weave_request: WeaveRequest, background_tasks: Backg
 
 @router.post("/reweave", response_model=WeaveResponse, tags=["weaver"])
 def reweave(request: Request, weave_request: WeaveRequest, background_tasks: BackgroundTasks):
-    """显式指定 Reweaver 端点
+    """显式指定 Reweave 端点
 
-    使用 Reweaver 引擎执行织径任务
+    使用 Reweave 引擎执行织径任务
     """
     timestamp = datetime.now()
     logger.info(
@@ -218,9 +218,9 @@ def reweave(request: Request, weave_request: WeaveRequest, background_tasks: Bac
 
 @router.post("/stitch", response_model=WeaveResponse, tags=["weaver"])
 def stitch(request: Request, weave_request: WeaveRequest, background_tasks: BackgroundTasks):
-    """显式指定 Stitcher 端点
+    """显式指定 Stitch 端点
 
-    使用 Stitcher 引擎执行织径任务
+    使用 Stitch 引擎执行织径任务
     """
     timestamp = datetime.now()
     logger.info(
@@ -260,9 +260,9 @@ def stitch(request: Request, weave_request: WeaveRequest, background_tasks: Back
 
 @router.post("/dream", response_model=WeaveResponse, tags=["weaver"])
 def dream(request: Request, weave_request: WeaveRequest, background_tasks: BackgroundTasks):
-    """显式指定 Dreamer 端点
+    """显式指定 Dream 端点
 
-    使用 Dreamer 引擎执行织径任务
+    使用 Dream 引擎执行织径任务
     """
     timestamp = datetime.now()
     logger.info(
@@ -327,9 +327,9 @@ def get_weave_status(request: Request, task_id: str):
 
 @router.get("/reweave/{task_id}", response_model=TaskStatusResponse, tags=["weaver"])
 def get_reweave_status(request: Request, task_id: str):
-    """查询 Reweaver 任务状态
+    """查询 Reweave 任务状态
 
-    查询使用 Reweaver 引擎执行的织径任务状态
+    查询使用 Reweave 引擎执行的织径任务状态
     """
     timestamp = datetime.now()
     logger.info(
@@ -352,9 +352,9 @@ def get_reweave_status(request: Request, task_id: str):
 
 @router.get("/stitch/{task_id}", response_model=TaskStatusResponse, tags=["weaver"])
 def get_stitch_status(request: Request, task_id: str):
-    """查询 Stitcher 任务状态
+    """查询 Stitch 任务状态
 
-    查询使用 Stitcher 引擎执行的织径任务状态
+    查询使用 Stitch 引擎执行的织径任务状态
     """
     timestamp = datetime.now()
     logger.info(
@@ -377,9 +377,9 @@ def get_stitch_status(request: Request, task_id: str):
 
 @router.get("/dream/{task_id}", response_model=TaskStatusResponse, tags=["weaver"])
 def get_dream_status(request: Request, task_id: str):
-    """查询 Dreamer 任务状态
+    """查询 Dream 任务状态
 
-    查询使用 Dreamer 引擎执行的织径任务状态
+    查询使用 Dream 引擎执行的织径任务状态
     """
     timestamp = datetime.now()
     logger.info(
@@ -437,9 +437,9 @@ def stop_weave_task(request: Request, task_id: str):
 
 @router.delete("/reweave/{task_id}", response_model=TaskStopResponse, tags=["weaver"])
 def stop_reweave_task(request: Request, task_id: str):
-    """停止 Reweaver 任务
+    """停止 Reweave 任务
 
-    停止使用 Reweaver 引擎执行的织径任务
+    停止使用 Reweave 引擎执行的织径任务
     """
     timestamp = datetime.now()
     logger.info(
@@ -472,9 +472,9 @@ def stop_reweave_task(request: Request, task_id: str):
 
 @router.delete("/stitch/{task_id}", response_model=TaskStopResponse, tags=["weaver"])
 def stop_stitch_task(request: Request, task_id: str):
-    """停止 Stitcher 任务
+    """停止 Stitch 任务
 
-    停止使用 Stitcher 引擎执行的织径任务
+    停止使用 Stitch 引擎执行的织径任务
     """
     timestamp = datetime.now()
     logger.info(
@@ -507,9 +507,9 @@ def stop_stitch_task(request: Request, task_id: str):
 
 @router.delete("/dream/{task_id}", response_model=TaskStopResponse, tags=["weaver"])
 def stop_dream_task(request: Request, task_id: str):
-    """停止 Dreamer 任务
+    """停止 Dream 任务
 
-    停止使用 Dreamer 引擎执行的织径任务
+    停止使用 Dream 引擎执行的织径任务
     """
     timestamp = datetime.now()
     logger.info(
@@ -556,7 +556,7 @@ def download_weave_playback(request: Request, task_id: str):
         logger.info(
             f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
         )
-        raise HTTPException(status_code=404, detail=f"回放文件不存在")
+        raise HTTPException(status_code=404, detail="回放文件不存在")
 
     logger.info(
         f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: success | 任务ID: {task_id}"
@@ -570,9 +570,9 @@ def download_weave_playback(request: Request, task_id: str):
 
 @router.get("/reweave/{task_id}/playback", tags=["weaver"])
 def download_reweave_playback(request: Request, task_id: str):
-    """下载 Reweaver 回放文件
+    """下载 Reweave 回放文件
 
-    下载使用 Reweaver 引擎执行的织径任务的回放文件
+    下载使用 Reweave 引擎执行的织径任务的回放文件
     """
     timestamp = datetime.now()
     logger.info(
@@ -584,7 +584,7 @@ def download_reweave_playback(request: Request, task_id: str):
         logger.info(
             f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
         )
-        raise HTTPException(status_code=404, detail=f"回放文件不存在")
+        raise HTTPException(status_code=404, detail="回放文件不存在")
 
     logger.info(
         f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: success | 任务ID: {task_id}"
@@ -598,9 +598,9 @@ def download_reweave_playback(request: Request, task_id: str):
 
 @router.get("/stitch/{task_id}/playback", tags=["weaver"])
 def download_stitch_playback(request: Request, task_id: str):
-    """下载 Stitcher 回放文件
+    """下载 Stitch 回放文件
 
-    下载使用 Stitcher 引擎执行的织径任务的回放文件
+    下载使用 Stitch 引擎执行的织径任务的回放文件
     """
     timestamp = datetime.now()
     logger.info(
@@ -612,7 +612,7 @@ def download_stitch_playback(request: Request, task_id: str):
         logger.info(
             f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
         )
-        raise HTTPException(status_code=404, detail=f"回放文件不存在")
+        raise HTTPException(status_code=404, detail="回放文件不存在")
 
     logger.info(
         f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: success | 任务ID: {task_id}"
@@ -626,9 +626,9 @@ def download_stitch_playback(request: Request, task_id: str):
 
 @router.get("/dream/{task_id}/playback", tags=["weaver"])
 def download_dream_playback(request: Request, task_id: str):
-    """下载 Dreamer 回放文件
+    """下载 Dream 回放文件
 
-    下载使用 Dreamer 引擎执行的织径任务的回放文件
+    下载使用 Dream 引擎执行的织径任务的回放文件
     """
     timestamp = datetime.now()
     logger.info(
@@ -640,7 +640,7 @@ def download_dream_playback(request: Request, task_id: str):
         logger.info(
             f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
         )
-        raise HTTPException(status_code=404, detail=f"回放文件不存在")
+        raise HTTPException(status_code=404, detail="回放文件不存在")
 
     logger.info(
         f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: success | 任务ID: {task_id}"

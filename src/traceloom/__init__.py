@@ -39,12 +39,8 @@ def reweave(input_file: str, output: str = "output.txt") -> dict:
     返回:
         dict: 包含路径信息的字典
     """
-    # 读取输入文件
-    with open(input_file, "r") as f:
-        content = f.read()
-
     # 使用 WeavingEngine 进行重织
-    result = _get_weaving_engine().weave(content, mode="reweave")
+    result = _get_weaving_engine().weave(input_file, mode="reweave")
 
     # 保存结果
     _get_weaving_engine().save_result(result, output)

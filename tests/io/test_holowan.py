@@ -8,7 +8,7 @@ from pathlib import Path
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from traceloom.io.adapters.holowan import HoloWANTrace
+from traceloom.io.adapters._holowan import HoloWANTrace
 
 
 def test_holowan_file_basic():
@@ -21,7 +21,7 @@ def test_holowan_file_basic():
     assert isinstance(holowan_trace, HoloWANTrace)
 
     # 添加数据点
-    from traceloom.io.adapters.holowan import HoloWANDataPoint, HoloWANDirection
+    from traceloom.io.adapters._holowan import HoloWANDataPoint, HoloWANDirection
 
     data_point1 = HoloWANDataPoint(
         up=HoloWANDirection(delay=100.0, loss=0.1, bw=10.0), down=HoloWANDirection(delay=95.0, loss=0.0, bw=12.0)
@@ -80,7 +80,7 @@ def test_holowan_file_with_compact_state_str():
     holowan_trace = HoloWANTrace()
 
     # 添加数据点
-    from traceloom.io.adapters.holowan import HoloWANDataPoint, HoloWANDirection
+    from traceloom.io.adapters._holowan import HoloWANDataPoint, HoloWANDirection
 
     data_point1 = HoloWANDataPoint(
         up=HoloWANDirection(delay=100.0, loss=0.1, bw=10.0), down=HoloWANDirection(delay=95.0, loss=0.0, bw=12.0)

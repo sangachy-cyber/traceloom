@@ -6,7 +6,7 @@
 
 from traceloom.domain.pattern import Pattern
 from traceloom.weaving.engines.dreamer import Dreamer
-from traceloom.weaving.engines.reweaver.reweaver import Reweaver
+from traceloom.weaving.engines.reweaver import Reweaver
 from traceloom.weaving.engines.stitcher import Stitcher
 
 

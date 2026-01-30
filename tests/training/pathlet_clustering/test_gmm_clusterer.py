@@ -5,16 +5,15 @@
 """
 
 import tempfile
+import warnings
 from pathlib import Path
 
 import pytest
-import warnings
 from sklearn.exceptions import ConvergenceWarning
 
 from traceloom.domain.pathlet import BodyObservations, Observation, Pathlet, TailObservations
 from traceloom.domain.state import StateLabel
 from training.pathlet_clustering.gmm_clusterer import GMMClusterer
-
 
 # 忽略GMM收敛警告
 warnings.filterwarnings("ignore", category=ConvergenceWarning)

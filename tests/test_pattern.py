@@ -3,7 +3,7 @@
 
 import pytest
 
-from traceloom.domain.pattern import Pattern
+from traceloom.domain.pattern import Pattern, PatternParser
 
 
 def test_pattern_from_string():
@@ -135,3 +135,63 @@ def test_pattern_roundtrip():
     pattern = Pattern.from_json(json_data)
     converted_json = pattern.to_json()
     assert converted_json == json_data
+
+
+def test_pattern_from_state_list():
+    """测试从状态列表创建织样"""
+    # 测试基本功能
+    state_list = [0, 1, 2, 3, 0, 0, 0, 0, 1, 1]
+    pattern = Pattern.from_state_list(state_list)
+    expected_sequence = [
+        ("s0", 10),  # 1个0
+        ("s1", 10),  # 1个1
+        ("s2", 10),  # 1个2
+        ("s3", 10),  # 1个3
+        ("s0", 40),  # 4个0
+        ("s1", 20)   # 2个1
+    ]
+    assert pattern.sequence == expected_sequence
+    assert pattern.to_string() == "s0x1 -> s1x1 -> s2x1 -> s3x1 -> s0x4 -> s1x2"
+
+    # 测试连续状态合并
+    state_list = [1, 1, 1, 2, 2, 3]
+    pattern = Pattern.from_state_list(state_list)
+    expected_sequence = [("s1", 30), ("s2", 20), ("s3", 10)]
+    assert pattern.sequence == expected_sequence
+
+
+def test_pattern_state_list_edge_cases():
+    """测试状态列表边界情况"""
+    # 测试单状态列表
+    state_list = [5]
+    pattern = Pattern.from_state_list(state_list)
+    assert pattern.sequence == [("s5", 10)]
+
+    # 测试空列表
+    with pytest.raises(ValueError, match="状态列表不能为空"):
+        Pattern.from_state_list([])
+
+
+def test_pattern_state_list_validation():
+    """测试状态列表验证"""
+    # 测试无效状态ID（负数）
+    with pytest.raises(ValueError, match="无效的状态ID"):
+        Pattern.from_state_list([-1])
+
+    # 测试无效状态ID（非整数）
+    with pytest.raises(ValueError, match="无效的状态ID"):
+        Pattern.from_state_list(["invalid"])
+
+
+def test_pattern_parser_state_list():
+    """测试PatternParser解析状态列表"""
+    # 测试直接解析状态列表
+    state_list = [0, 1, 1, 2]
+    pattern = PatternParser.parse(state_list)
+    expected_sequence = [("s0", 10), ("s1", 20), ("s2", 10)]
+    assert pattern.sequence == expected_sequence
+
+    # 测试边界情况
+    state_list = [3]
+    pattern = PatternParser.parse(state_list)
+    assert pattern.sequence == [("s3", 10)]

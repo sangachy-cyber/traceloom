@@ -524,7 +524,7 @@ class PathletStorage:
         if not self.main_data_file.exists():
             logger.warning(f"Pathlet主数据文件不存在: {self.pathlet_dir}")
             return []
-
+        logger.info(f"加载全量径元[state_id:{state_id}]")
         # 读取主数据，使用谓词下推
         main_data_table = pq.read_table(self.main_data_file)
 

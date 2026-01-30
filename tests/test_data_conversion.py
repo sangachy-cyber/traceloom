@@ -11,7 +11,7 @@
 import pandas as pd
 import pytest
 
-from traceloom.domain.pathlet import Pathlet, BodyObservations, TailObservations
+from traceloom.domain.pathlet import BodyObservations, Pathlet, TailObservations
 from traceloom.storage.pathlet_storage import PathletStatistics
 
 

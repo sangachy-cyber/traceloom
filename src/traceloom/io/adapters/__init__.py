@@ -4,7 +4,6 @@
 提供各种格式的网络数据解析和适配功能。
 """
 
-from .csv import CSVIO
-from .holowan import HoloWANTrace
+from ._holowan import HoloWANTrace
 
-__all__ = ["HoloWANTrace", "CSVIO"]
+__all__ = ["HoloWANTrace"]

@@ -46,11 +46,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.cm import get_cmap
 from sklearn.manifold import TSNE
-
-from traceloom.core.logger import logger
-
 from umap import UMAP
 
+from traceloom.core.logger import logger
 from traceloom.core.utils import setup_chinese_font
 
 # 设置中文字体
@@ -80,7 +78,8 @@ class TSNEVisualizer:
         self.perplexity = perplexity
         self.random_state = random_state
 
-    def _get_color_mapping(self, state_names: List[str]) -> Dict[str, Any]:
+    @staticmethod
+    def _get_color_mapping(state_names: List[str]) -> Dict[str, Any]:
         """根据状态名自动生成颜色映射
 
         Args:
@@ -101,13 +100,13 @@ class TSNEVisualizer:
         return {state: cmap(i / max(1, n_colors - 1)) for i, state in enumerate(unique_states)}
 
     def visualize(
-            self,
-            features: List[np.ndarray],
-            labels: List[int],
-            state_metadata: Dict[str, Any],
-            output_path: Path,
-            probabilities: Optional[List[float]] = None,
-            method: str = "tsne",
+        self,
+        features: List[np.ndarray],
+        labels: List[int],
+        state_metadata: Dict[str, Any],
+        output_path: Path,
+        probabilities: Optional[List[float]] = None,
+        method: str = "tsne",
     ) -> None:
         """生成降维可视化
 
@@ -166,13 +165,13 @@ class TSNEVisualizer:
         self._plot_embedding(result, labels, state_metadata, output_path, probabilities, method)
 
     def _plot_embedding(
-            self,
-            embedding_result: np.ndarray,
-            labels: np.ndarray,
-            state_metadata: Dict[str, Any],
-            output_path: Path,
-            probabilities: Optional[np.ndarray] = None,
-            method: str = "tsne",
+        self,
+        embedding_result: np.ndarray,
+        labels: np.ndarray,
+        state_metadata: Dict[str, Any],
+        output_path: Path,
+        probabilities: Optional[np.ndarray] = None,
+        method: str = "tsne",
     ) -> None:
         """绘制降维结果
 
@@ -242,12 +241,12 @@ class TSNEVisualizer:
 
         return {"state_names": state_names, "state_colors": state_colors, "state_is_pure": state_is_pure}
 
+    @staticmethod
     def _plot_scatter(
-            self,
-            embedding_result: np.ndarray,
-            labels: np.ndarray,
-            state_info: Dict[str, Any],
-            probabilities: Optional[np.ndarray] = None,
+        embedding_result: np.ndarray,
+        labels: np.ndarray,
+        state_info: Dict[str, Any],
+        probabilities: Optional[np.ndarray] = None,
     ) -> None:
         """绘制散点图
 
@@ -285,7 +284,8 @@ class TSNEVisualizer:
                 scatter.set_edgecolor("gray")
                 scatter.set_linewidth(0.5)
 
-    def _add_plot_details(self, method: str) -> None:
+    @staticmethod
+    def _add_plot_details(method: str) -> None:
         """添加图表细节
 
         Args:
@@ -302,7 +302,8 @@ class TSNEVisualizer:
         plt.legend(fontsize=10)
         plt.grid(True, alpha=0.3)
 
-    def _save_plot(self, output_path: Path, method: str) -> None:
+    @staticmethod
+    def _save_plot(output_path: Path, method: str) -> None:
         """保存图表
 
         Args:

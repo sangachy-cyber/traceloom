@@ -9,6 +9,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
+from loguru import logger
+
 from traceloom.core.exceptions import ValidationError
 
 
@@ -98,7 +100,58 @@ class Pattern:
             seq.append((state, duration))
         return cls(seq)
 
-    def _validate(self, seq: List[Tuple[str, int]]) -> List[Tuple[str, int]]:
+    @classmethod
+    def from_state_list(cls, states: List[int]) -> "Pattern":
+        """从状态列表创建织样
+
+        支持的格式
+            - [0, 1, 2, 3, 0, 0, 0, 0, 1, 1]: 连续相同状态会被合并
+
+        参数:
+            states: 状态ID列表
+
+        返回:
+            Pattern: 解析后的织样对象
+
+        异常:
+            ValueError: 当状态列表为空或包含无效状态时
+        """
+        if not states:
+            raise ValueError("状态列表不能为空")
+
+        # 合并连续相同状态
+        merged_states = []
+        current_state = states[0]
+        count = 1
+
+        for state in states[1:]:
+            if state == current_state:
+                count += 1
+            else:
+                merged_states.append((current_state, count))
+                current_state = state
+                count = 1
+
+        # 添加最后一组状态
+        merged_states.append((current_state, count))
+
+        # 转换为Pattern序列格式
+        seq = []
+        for state_id, duration_count in merged_states:
+            logger.error(f"{state_id}: {duration_count}, {type(duration_count)}, {type(state_id)}")
+            # 验证状态ID
+            if not isinstance(state_id, int) or state_id < 0:
+                raise ValueError(f"无效的状态ID: {state_id}")
+            # 转换为状态名格式 "s{state_id}"
+            state = f"s{state_id}"
+            # 计算持续时间（秒），默认每个状态持续10秒
+            duration_sec = duration_count * 10
+            seq.append((state, duration_sec))
+
+        return cls(seq)
+
+    @staticmethod
+    def _validate(seq: List[Tuple[str, int]]) -> List[Tuple[str, int]]:
         """验证状态序列的合法性
 
         参数:
@@ -187,11 +240,11 @@ class PatternParser:
     """
 
     @staticmethod
-    def parse(input_data: Union[str, List[Dict[str, Any]], Pattern, Path]) -> Pattern:
+    def parse(input_data: Union[str, List[Dict[str, Any]], List[int], Pattern, Path]) -> Pattern:
         """统一解析输入数据，返回标准化Pattern对象
 
         参数:
-            input_data: 输入数据，可以是文件路径、织样字符串、JSON列表或Pattern对象
+            input_data: 输入数据，可以是文件路径、织样字符串、JSON列表、状态ID列表或Pattern对象
 
         返回:
             Pattern: 标准化的Pattern对象
@@ -213,8 +266,19 @@ class PatternParser:
         if isinstance(input_data, str):
             return PatternParser._from_string(input_data)
 
+        # 处理字典
+        if isinstance(input_data, list):
+            return PatternParser._from_state_list(input_data)
+
         # 处理JSON列表
         if isinstance(input_data, list):
+            # 检查是否为状态ID列表
+            if input_data and isinstance(input_data[0], int):
+                try:
+                    return Pattern.from_state_list(input_data)
+                except ValueError as e:
+                    raise ValidationError(f"状态列表解析失败：{e}") from e
+            # 否则视为JSON列表
             return PatternParser._from_json(input_data)
 
         # 不支持的输入类型
@@ -293,3 +357,10 @@ class PatternParser:
             return Pattern.from_json(data)
         except ValueError as e:
             raise ValidationError(f"JSON解析失败：{e}") from e
+
+    @staticmethod
+    def _from_state_list(data: List[int]) -> Pattern:
+        try:
+            return Pattern.from_state_list(data)
+        except ValueError as e:
+            raise ValidationError(f"List解析失败：{e}") from e

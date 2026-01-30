@@ -9,7 +9,6 @@ from typing import List
 
 from traceloom.core.config import settings
 from traceloom.core.logger import logger
-
 from traceloom.io import HoloWANTrace
 from traceloom.storage.pathlet_storage import PathletStorage
 

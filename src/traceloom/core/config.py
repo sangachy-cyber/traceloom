@@ -57,18 +57,11 @@ class Settings(BaseSettings):
     TRACE_EXT: str = ".txt"
     """轨迹文件扩展名"""
 
-    WEAVING_LAW_FILE: Path = MODELS_DIR / "weaving_law.pkl"
+    WEAVING_LAW_FILE: Path = MODELS_DIR / "gmm_model.joblib"
     """编织规则文件路径"""
 
     PATHLET_PARQUET_FILE: str = "pathlets.parquet"
     """径元存储的 Parquet 文件名"""
-
-    # 7. 观测字段定义（顺序必须与原始数据一致）
-    OBSERVATION_FIELDS: tuple[str, ...] = ("delay_up", "loss_up", "bw_up", "delay_down", "loss_down", "bw_down")
-    """观测字段定义，顺序必须与原始数据一致"""
-
-    OBSERVATION_DIM: int = len(OBSERVATION_FIELDS)  # = 6
-    """观测维度，由观测字段数量决定"""
 
     # 8. 日志
     LOG_LEVEL: str = "INFO"

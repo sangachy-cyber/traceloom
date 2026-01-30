@@ -13,7 +13,7 @@ from loguru import logger
 from traceloom.app.api.v1.schemas import WeaveRequest
 from traceloom.devices import HoloWAN
 from traceloom.domain.pattern import PatternParser
-from traceloom.io.adapters.holowan import HoloWANTrace
+from traceloom.io.adapters._holowan import HoloWANTrace
 from traceloom.storage.task_store import TaskStore
 from traceloom.weaving.engines import select_engine
 

@@ -55,8 +55,10 @@ class StateGMM:
         self._labels: Optional[np.ndarray] = None  # 保存拟合时的标签
 
         if model_path:
+            logger.info(f"加载 GMM 模型({model_path})")
             self.load(model_path)
         else:
+            logger.info(f"随机生成新的 GMM 模型({model_path})")
             self.gmm = GaussianMixture(n_components=n_components, random_state=random_state)
             self.scaler = StandardScaler()
 
@@ -177,14 +179,14 @@ class StateGMM:
         logger.debug(f"空观测数据径元数量: {empty_observations_count} / {len(pathlets)}")
 
         features = np.array(features)
-        logger.debug(f"提取的特征形状: {features.shape}")
-        logger.debug(f"特征均值: {np.mean(features, axis=0)[:3]}...")
-        logger.debug(f"特征标准差: {np.std(features, axis=0)[:3]}...")
+        logger.info(f"提取的特征形状: {features.shape}")
+        logger.info(f"特征均值: {np.mean(features, axis=0)[:3]}...")
+        logger.info(f"特征标准差: {np.std(features, axis=0)[:3]}...")
 
         # 缩放特征
         features = self.scaler.fit_transform(features)
-        logger.debug(f"缩放后的特征均值: {np.mean(features, axis=0)[:3]}...")
-        logger.debug(f"缩放后的特征标准差: {np.std(features, axis=0)[:3]}...")
+        logger.info(f"缩放后的特征均值: {np.mean(features, axis=0)[:3]}...")
+        logger.info(f"缩放后的特征标准差: {np.std(features, axis=0)[:3]}...")
 
         # 拟合 GMM 模型
         if self.gmm:
@@ -198,8 +200,8 @@ class StateGMM:
             # 统计聚类结果
             unique_labels, counts = np.unique(self._labels, return_counts=True)
             label_counts = dict(zip(unique_labels, counts))
-            logger.debug(f"GMM 聚类结果: {label_counts}")
-            logger.debug(f"GMM 模型拟合完成，n_components={self.n_components}")
+            logger.info(f"GMM 聚类结果: {label_counts}")
+            logger.info(f"GMM 模型拟合完成，n_components={self.n_components}")
         else:
             raise ValueError("GMM 模型未初始化")
 
@@ -228,8 +230,7 @@ class StateGMM:
             prediction = self.gmm.predict(features)[0]
             probabilities = self.gmm.predict_proba(features)[0]
             confidence = max(probabilities)
-
-            return StateLabel(state_id=prediction, confidence=confidence)
+            return StateLabel(state_id=int(prediction), confidence=float(confidence))
         else:
             raise ValueError("GMM 模型未初始化")
 
@@ -263,7 +264,8 @@ class StateGMM:
             model_path: 模型路径
         """
         if not model_path.exists():
-            raise FileNotFoundError(f"模型文件不存在: {model_path}")
+            logger.error(f"模型文件不存在: {model_path}")
+            raise
 
         model_data = joblib.load(model_path)
         self.gmm = model_data["gmm"]

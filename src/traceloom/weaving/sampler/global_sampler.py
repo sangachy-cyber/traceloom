@@ -4,6 +4,7 @@
 根据状态ID和持续时间从全局径元库中采样径元
 """
 
+import random
 from typing import List, Tuple
 
 from traceloom.core.exceptions import PathletSamplingError
@@ -70,6 +71,7 @@ class GlobalSampler:
 
         pathlet_sequence = []
         for state_id, duration in state_duration_sequence:
+            state_id = int(str(state_id).replace("s", ""))
             # 计算需要的径元数量（每10秒一个径元）
             pathlet_count = duration // 10
             if duration % 10 > 0:
@@ -77,23 +79,12 @@ class GlobalSampler:
 
             # 从状态-径元映射中获取径元
             pathlets = self.state_pathlet_map.get(state_id, [])
-            if not pathlets:
-                # 如果没有找到对应状态的径元，尝试从所有径元中随机选择
-                try:
-                    all_pathlets = self.pathlet_storage.load_pathlets()
-                    if all_pathlets:
-                        pathlets = all_pathlets
-                        logger.warning(f"未找到状态 {state_id} 的径元，使用所有径元进行采样")
-                    else:
-                        raise PathletSamplingError(f"无法为状态 {state_id} 采样到任何径元")
-                except Exception as e:
-                    raise PathletSamplingError(f"无法为状态 {state_id} 采样到任何径元: {e}") from e
+            if len(pathlets) == 0:
+                raise PathletSamplingError(f"无法为状态 {state_id} 采样到任何径元")
 
             # 采样径元
-            for i in range(pathlet_count):
-                # 简单实现：循环使用可用径元
-                pathlet = pathlets[i % len(pathlets)]
-                pathlet_sequence.append(pathlet)
+            for _ in range(pathlet_count):
+                pathlet_sequence.append(random.choice(pathlets))
 
         logger.info(f"径元采样完成，共采样 {len(pathlet_sequence)} 个径元")
         return pathlet_sequence

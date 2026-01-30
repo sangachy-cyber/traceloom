@@ -29,10 +29,10 @@ from typing import Any, Dict, List, Optional, Union
 from traceloom.core.exceptions import StateMappingError, ValidationError
 from traceloom.core.logger import logger
 from traceloom.domain.pattern import Pattern, PatternParser
-from traceloom.io.adapters.holowan import HoloWANPoint, HoloWANDirection, HoloWANTrace
+from traceloom.io.adapters._holowan import HoloWANDirection, HoloWANPoint, HoloWANTrace
 from traceloom.storage.pathlet_storage import PathletStorage
 from traceloom.weaving.engines.dreamer import Dreamer
-from traceloom.weaving.engines.reweaver.reweaver import Reweaver
+from traceloom.weaving.engines.reweaver import Reweaver
 from traceloom.weaving.engines.stitcher import Stitcher
 from traceloom.weaving.sampler.global_sampler import GlobalSampler
 from traceloom.weaving.weaving_law import WeavingLawEngine
@@ -143,7 +143,14 @@ class WeavingEngine:
         # 根据模式不同，对输入数据进行不同处理
         if mode == "reweave":
             # 重织模式：直接处理输入内容，不解析为Pattern
-            result = self._reweave(input_data)
+            state_list = []
+            holowan_trace = HoloWANTrace.load(input_data)
+            pathlets, stats = holowan_trace.get_filtered_extended_windows_with_stats(step=100)
+            for pathlet in pathlets:
+                state_list.append(self.weaving_law.predict_state(pathlet))
+
+            pattern = self.pattern_parser.parse(state_list)
+            result = self._reweave(pattern, [])
         else:
             # 绣织和广织模式：解析输入为Pattern
             # 1. 解析输入，转换为Pattern
@@ -166,7 +173,7 @@ class WeavingEngine:
 
         return result
 
-    def _reweave(self, input_data: Union[str, Path]) -> Dict[str, Any]:
+    def _reweave(self, pattern: Pattern, state_duration_sequence: List[tuple]) -> Dict[str, Any]:
         """重织模式实现
 
         重织模式：基于现有轨迹文件或内容，通过径元拼接生成新的轨迹。
@@ -187,34 +194,17 @@ class WeavingEngine:
             result = weaving_engine._reweave(content)
         """
         logger.info("开始重织操作")
-
-        # 处理输入数据
-        if isinstance(input_data, Path):
-            # 输入是文件路径
-            file_path = input_data
-            with open(file_path, "r") as f:
-                input_data = f.read()
-        elif isinstance(input_data, str) and len(input_data) < 1000 and Path(input_data).exists():
-            # 输入是短字符串且是文件路径
-            file_path = Path(input_data)
-            with open(file_path, "r") as f:
-                input_data = f.read()
-        else:
-            # 输入是文件内容
-            pass
-
-        # 1. 采样径元（从输入内容中提取信息）
-        # 这里需要根据实际情况实现从HoloWAN文件内容中提取径元的逻辑
-        # 暂时使用默认的径元序列
-        pathlet_sequence = self.global_sampler.sample_pathlets([(0, 10), (1, 10)])
+        pathlet_sequence = self.global_sampler.sample_pathlets(pattern.sequence)
 
         # 2. 生成合成轨迹
         trace_data = self.reweaver.generate_trace(pathlet_sequence, self.pathlet_storage)
 
         # 3. 构建结果
+        # 计算总持续时间，根据pattern中的序列
+        duration_sec = sum(duration for _, duration in pattern.sequence)
         result = {
             "path_id": f"tl_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            "duration_sec": 20,
+            "duration_sec": duration_sec,
             "state_sequence": "reweave_from_holowan",
             "trace_data": trace_data,
         }
@@ -248,7 +238,7 @@ class WeavingEngine:
         )
 
         # 2. 生成输出结果
-        trace_data = self._profiles_to_trace_data(profiles)
+        trace_data = self._pathlets_to_trace_data(profiles)
 
         return self._build_result(pattern, trace_data)
 
@@ -278,11 +268,12 @@ class WeavingEngine:
         profiles = self.dreamer.dream(state_sequence=state_sequence, duration=duration)
 
         # 2. 生成输出结果
-        trace_data = self._profiles_to_trace_data(profiles)
+        trace_data = self._pathlets_to_trace_data(profiles)
 
         return self._build_result(pattern, trace_data)
 
-    def _build_result(self, pattern: Pattern, trace_data: List[List[float]]) -> Dict[str, Any]:
+    @staticmethod
+    def _build_result(pattern: Pattern, trace_data: List[List[float]]) -> Dict[str, Any]:
         """构建织径结果
 
         根据织样和生成的轨迹数据，构建完整的织径结果字典。
@@ -315,62 +306,48 @@ class WeavingEngine:
 
         return result
 
-    def _profiles_to_trace_data(self, profiles) -> List[List[float]]:
-        """将网络剖面转换为轨迹数据格式
+    @staticmethod
+    def _pathlets_to_trace_data(pathlets) -> List[List[float]]:
+        """将径元转换为轨迹数据格式
 
-        将不同类型的网络剖面（如RawProfile或其他包含ctx_10s和cont_1s的对象）转换为统一的轨迹数据格式。
+        将不同类型的径元（如Pathlet对象或其他包含body和tail的对象）转换为统一的轨迹数据格式。
 
         Args:
-            profiles: 网络剖面列表
+            pathlets: 径元列表
 
         Returns:
             List[List[float]]: 轨迹数据，格式为[[delay_up, loss_up, bw_up, delay_down, loss_down, bw_down], ...]
 
         Examples:
             # 内部方法，通常通过_stitch或_dream方法调用
-            # trace_data = weaving_engine._profiles_to_trace_data(profiles)
+            # trace_data = weaving_engine._pathlets_to_trace_data(pathlets)
         """
         trace_data = []
-        for profile in profiles:
-            # 检查profile对象的属性，处理不同的属性结构
-            if hasattr(profile, "ctx_10s") and hasattr(profile, "cont_1s"):
-                # 提取10秒主干数据
-                ctx_data = profile.ctx_10s
-                for i in range(len(ctx_data.delay_up)):
+        for pathlet in pathlets:
+            # 检查pathlet对象的属性，处理不同的属性结构
+            if hasattr(pathlet, "body") and hasattr(pathlet, "tail"):
+                # 提取主体观测数据
+                for obs in pathlet.body.observations:
                     trace_data.append(
-                        [
-                            ctx_data.delay_up[i],
-                            ctx_data.loss_up[i],
-                            ctx_data.bw_up[i],
-                            ctx_data.delay_down[i],
-                            ctx_data.loss_down[i],
-                            ctx_data.bw_down[i],
-                        ]
+                        [obs.delay_up, obs.loss_up, obs.bw_up, obs.delay_down, obs.loss_down, obs.bw_down]
                     )
 
-                # 提取1秒融尾数据
-                cont_data = profile.cont_1s
-                for i in range(len(cont_data.delay_up)):
+                # 提取融尾观测数据
+                for obs in pathlet.tail.observations:
                     trace_data.append(
-                        [
-                            cont_data.delay_up[i],
-                            cont_data.loss_up[i],
-                            cont_data.bw_up[i],
-                            cont_data.delay_down[i],
-                            cont_data.loss_down[i],
-                            cont_data.bw_down[i],
-                        ]
+                        [obs.delay_up, obs.loss_up, obs.bw_up, obs.delay_down, obs.loss_down, obs.bw_down]
                     )
-            elif hasattr(profile, "observations"):
-                # 处理RawProfile对象的observations属性
-                for obs in profile.observations:
+            elif hasattr(pathlet, "observations"):
+                # 处理包含observations属性的对象
+                for obs in pathlet.observations:
                     trace_data.append(
                         [obs.delay_up, obs.loss_up, obs.bw_up, obs.delay_down, obs.loss_down, obs.bw_down]
                     )
 
         return trace_data
 
-    def save_result(self, result: Dict[str, Any], output_file: Union[str, Path]) -> None:
+    @staticmethod
+    def save_result(result: Dict[str, Any], output_file: Union[str, Path]) -> None:
         """保存织径结果到文件
 
         将织径结果保存为HoloWAN格式的轨迹文件，可直接用于HoloWAN模拟器。
@@ -384,7 +361,6 @@ class WeavingEngine:
             result = weaving_engine.weave("s0x2 -> s2x3", mode="stitch")
             weaving_engine.save_result(result, "output.trace")
         """
-        output_path = Path(output_file)
 
         # 创建HoloWANTrace对象并保存
         holowan_trace = HoloWANTrace()
@@ -399,11 +375,11 @@ class WeavingEngine:
                 # 创建HoloWANPoint对象并添加到列表
                 holo_point = HoloWANPoint(up=up, down=down)
                 points.append(holo_point)
-        
+
         # 设置轨迹点
         holowan_trace.points = points
 
         # 写入文件
-        holowan_trace.dump(output_path)
+        holowan_trace.dump(output_file)
 
-        logger.info(f"织径结果已保存到：{output_path}")
+        logger.info(f"织径结果已保存到：{output_file}")

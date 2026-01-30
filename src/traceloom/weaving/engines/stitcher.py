@@ -7,8 +7,7 @@
 from typing import List
 
 from traceloom.core.logger import logger
-from traceloom.domain.pathlet import BodyObservations, TailObservations, Pathlet
-from traceloom.storage.pathlet_storage import PathletStatistics
+from traceloom.domain.pathlet import Pathlet
 
 
 class Stitcher:
@@ -28,7 +27,8 @@ class Stitcher:
         """初始化绣织引擎"""
         pass
 
-    def stitch(self, state_sequence: List[int], duration: int) -> List[Pathlet]:
+    @staticmethod
+    def stitch(state_sequence: List[int], duration: int) -> List[Pathlet]:
         """根据状态序列和持续时间生成网络剖面
 
         参数:
@@ -36,106 +36,11 @@ class Stitcher:
             duration: 总持续时间（秒）
 
         返回:
-            List[RawProfile]: 生成的网络剖面列表
+            List[Pathlet]: 生成的径元列表
         """
         logger.info(f"开始绣织操作，状态序列：{state_sequence}，总持续时间：{duration}秒")
-
-        profiles = []
-        # 简单实现：为每个状态生成一个网络剖面
-        for i, state_id in enumerate(state_sequence):
-            # 根据状态ID生成不同的网络参数
-            base_delay = state_id * 30  # 每个状态增加30ms延迟
-            base_loss = state_id * 0.01  # 每个状态增加1%丢包率
-            base_bw = 80 - state_id * 5  # 每个状态减少5Mbps带宽
-
-            # 导入 Observation 类
-            from traceloom.domain.pathlet import Observation
-
-            # 创建上下文数据（100个点）
-            ctx_observations = []
-            for _ in range(100):
-                obs = Observation(
-                    delay_up=base_delay + 5,  # 上行延迟
-                    loss_up=base_loss + 0.005,  # 上行丢包率
-                    bw_up=base_bw,  # 上行带宽
-                    delay_down=base_delay,  # 下行延迟
-                    loss_down=base_loss,  # 下行丢包率
-                    bw_down=base_bw + 5,  # 下行带宽
-                )
-                ctx_observations.append(obs)
-            ctx_10s = BodyObservations(observations=ctx_observations)
-
-            # 创建延续数据（10个点）
-            cont_observations = []
-            for _ in range(10):
-                obs = Observation(
-                    delay_up=base_delay + 5,
-                    loss_up=base_loss + 0.005,
-                    bw_up=base_bw,
-                    delay_down=base_delay,
-                    loss_down=base_loss,
-                    bw_down=base_bw + 5
-                )
-                cont_observations.append(obs)
-            cont_1s = TailObservations(observations=cont_observations)
-
-            # 创建上下文值
-            # 注意：ctx_values 变量未使用，仅作为示例保留
-            PathletStatistics(
-                delay_up_mean=base_delay + 5,
-                delay_up_std=0.0,
-                delay_down_mean=base_delay,
-                delay_down_std=0.0,
-                loss_up_mean=base_loss + 0.005,
-                loss_up_max=base_loss + 0.005,
-                loss_down_mean=base_loss,
-                loss_down_max=base_loss,
-                bw_up_mean=base_bw,
-                bw_up_max=base_bw,
-                bw_down_mean=base_bw + 5,
-                bw_down_max=base_bw + 5,
-            )
-
-            # 创建观测数据列表
-            observations = []
-
-            # 添加上下文数据（100个点）
-            for i in range(100):
-                from traceloom.domain.pathlet import Observation
-
-                obs = Observation(
-                    delay_up=ctx_10s.delay_up[i],
-                    loss_up=ctx_10s.loss_up[i],
-                    bw_up=ctx_10s.bw_up[i],
-                    delay_down=ctx_10s.delay_down[i],
-                    loss_down=ctx_10s.loss_down[i],
-                    bw_down=ctx_10s.bw_down[i],
-                )
-                observations.append(obs)
-
-            # 添加延续数据（10个点）
-            for i in range(10):
-                from traceloom.domain.pathlet import Observation
-
-                obs = Observation(
-                    delay_up=cont_1s.delay_up[i],
-                    loss_up=cont_1s.loss_up[i],
-                    bw_up=cont_1s.bw_up[i],
-                    delay_down=cont_1s.delay_down[i],
-                    loss_down=cont_1s.loss_down[i],
-                    bw_down=cont_1s.bw_down[i],
-                )
-                observations.append(obs)
-
-            # 创建网络剖面
-            profile = RawProfile(
-                trace_name=f"stitch_{i}_{state_id}", start_index=i * 100, observations=observations, is_valid=True
-            )
-
-            profiles.append(profile)
-
-        logger.info(f"绣织完成，生成 {len(profiles)} 个网络剖面")
-        return profiles
+        # 当前暂未实现，直接抛出 NotImplementedError
+        raise NotImplementedError
 
     def weave(self, pattern):
         """织径方法，与其他引擎保持一致的接口
@@ -146,28 +51,7 @@ class Stitcher:
         返回:
             List[Any]: 织径结果
         """
-        # 提取状态序列
-        state_sequence = [state_id for state_id, _ in pattern.sequence]
-        duration = sum(duration for _, duration in pattern.sequence)
-
-        # 调用stitch方法生成网络剖面
-        profiles = self.stitch(state_sequence, duration)
-
-        # 转换为观测数据
-        observations = []
-        for profile in profiles:
-            for i in range(100):
-                obs = {
-                    "delay_up": profile.ctx_10s.delay_up[i],
-                    "loss_up": profile.ctx_10s.loss_up[i],
-                    "bw_up": profile.ctx_10s.bw_up[i],
-                    "delay_down": profile.ctx_10s.delay_down[i],
-                    "loss_down": profile.ctx_10s.loss_down[i],
-                    "bw_down": profile.ctx_10s.bw_down[i],
-                }
-                observations.append(obs)
-
-        return observations
-
+        # 当前暂未实现，直接抛出 NotImplementedError
+        raise NotImplementedError
 
 __all__ = ["Stitcher"]

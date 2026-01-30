@@ -1,9 +1,7 @@
 from pathlib import Path
 
-
 import numpy as np
 from loguru import logger
-
 
 from traceloom.core.config import settings
 from traceloom.core.exceptions import ValidationError
@@ -107,7 +105,6 @@ class PathletClusteringPipeline:
         np.random.shuffle(trace_names)
 
         test_size = int(len(trace_names) * self.test_size)
-        test_trace_names = set(trace_names[:test_size])
         train_trace_names = set(trace_names[test_size:])
 
         # 构建训练集和测试集
@@ -128,9 +125,8 @@ class PathletClusteringPipeline:
 
         # 使用同目录下的 GMMClusterer
         from training.pathlet_clustering.gmm_clusterer import GMMClusterer
-        self.clusterer = GMMClusterer(
-            n_components=self.n_components, random_state=self.random_state
-        )
+
+        self.clusterer = GMMClusterer(n_components=self.n_components, random_state=self.random_state)
         # GMMClusterer.fit 方法会自动处理特征提取和归一化
         self.clusterer.fit(self.training_data)
 
@@ -147,13 +143,13 @@ class PathletClusteringPipeline:
         # 使用 clusterer 保存模型
         self.clusterer.save(model_dir)
 
-
     def step4_predict_test_set(self):
         """使用保存的模型预测测试集径元状态"""
         logger.info("预测测试集径元状态")
 
         # 加载训练后的模型
         from traceloom.models.state_gmm import StateGMM
+
         model_path = Path(settings.MODELS_DIR) / "gmm_model.joblib"
         state_gmm = StateGMM(model_path=model_path)
 
@@ -195,7 +191,7 @@ class PathletClusteringPipeline:
                     features = StateGMM.extract_features(observations)
                     cluster_features.append(features)
             cluster_features = np.array(cluster_features)
-            
+
             if len(cluster_features) > 0:
                 cluster_stats[i] = {
                     "count": len(cluster_features),
@@ -216,6 +212,7 @@ class PathletClusteringPipeline:
 
         # 加载训练后的模型
         from traceloom.models.state_gmm import StateGMM
+
         model_path = Path(settings.MODELS_DIR) / "gmm_model.joblib"
         state_gmm = StateGMM(model_path=model_path)
 
@@ -235,10 +232,10 @@ class PathletClusteringPipeline:
                 observations = pathlet.body.observations
                 state_label = state_gmm.predict(observations)
                 self.test_states.append(state_label.state_id)
-            logger.info(f"训练集状态分配完成，测试集状态分配完成")
+            logger.info("训练集状态分配完成，测试集状态分配完成")
         else:
             self.test_states = []
-            logger.info(f"训练集状态分配完成，测试集为空跳过")
+            logger.info("训练集状态分配完成，测试集为空跳过")
 
     def step7_generate_visualizations(self):
         """生成训练集和测试集的可视化"""
@@ -250,14 +247,12 @@ class PathletClusteringPipeline:
 
         # 导入 TSNEVisualizer
         from training.pathlet_clustering.visualization import TSNEVisualizer
+
         visualizer = TSNEVisualizer(random_state=self.random_state)
 
         # 生成状态映射
         state_metadata = {
-            "states": [
-                {"state_id": int(k), "state_name": v, "type": "pure"}
-                for k, v in self.state_mapping.items()
-            ]
+            "states": [{"state_id": int(k), "state_name": v, "type": "pure"} for k, v in self.state_mapping.items()]
         }
 
         # 提取训练集特征用于可视化
@@ -276,6 +271,7 @@ class PathletClusteringPipeline:
         # 对训练集进行降维可视化
         if training_features:
             import numpy as np
+
             training_features = np.array(training_features)
             # 数据采样以减少内存使用
             sample_size = min(10000, len(training_features))
@@ -293,7 +289,7 @@ class PathletClusteringPipeline:
                 sampled_states,
                 state_metadata,
                 output_dir / "training_visualization_umap.png",
-                method='umap'
+                method="umap",
             )
 
             # 使用 TSNEVisualizer 生成 TSNE 可视化
@@ -302,7 +298,7 @@ class PathletClusteringPipeline:
                 sampled_states,
                 state_metadata,
                 output_dir / "training_visualization_tsne.png",
-                method='tsne'
+                method="tsne",
             )
 
         # 提取测试集特征用于可视化
@@ -321,6 +317,7 @@ class PathletClusteringPipeline:
         # 对测试集进行降维可视化
         if test_features:
             import numpy as np
+
             test_features = np.array(test_features)
             # 数据采样以减少内存使用
             sample_size = min(10000, len(test_features))
@@ -338,7 +335,7 @@ class PathletClusteringPipeline:
                 sampled_states,
                 state_metadata,
                 output_dir / "test_visualization_umap.png",
-                method='umap'
+                method="umap",
             )
 
             # 使用 TSNEVisualizer 生成 TSNE 可视化
@@ -347,10 +344,8 @@ class PathletClusteringPipeline:
                 sampled_states,
                 state_metadata,
                 output_dir / "test_visualization_tsne.png",
-                method='tsne'
+                method="tsne",
             )
-
-
 
     def step8_update_pathlet_states(self):
         """更新径元状态信息并保存"""

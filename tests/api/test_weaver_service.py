@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
 """测试 Weaver Service API 端点"""
 
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch
-from pathlib import Path
 
 from traceloom.app import create_app
-from traceloom.services.weaver_service import WeaverService
-from traceloom.storage.task_store import TaskStore
 
 # 创建测试客户端
 client = TestClient(create_app())
