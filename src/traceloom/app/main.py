@@ -21,4 +21,4 @@ if __name__ == "__main__":
         python -m traceloom.app.main
     """
     logger.info("启动 TraceLoom Web 服务...")
-    uvicorn.run("traceloom.app.main:app", host="0.0.0.0", port=8000, reload=True, log_level="debug")
+    uvicorn.run("traceloom.app.main:app", host="0.0.0.0", port=8000, reload=False, log_level="debug")

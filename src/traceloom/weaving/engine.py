@@ -197,7 +197,7 @@ class WeavingEngine:
         pathlet_sequence = self.global_sampler.sample_pathlets(pattern.sequence)
 
         # 2. 生成合成轨迹
-        trace_data = self.reweaver.generate_trace(pathlet_sequence, self.pathlet_storage)
+        trace_data = self.reweaver.generate_trace(pathlet_sequence)
 
         # 3. 构建结果
         # 计算总持续时间，根据pattern中的序列

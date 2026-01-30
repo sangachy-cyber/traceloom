@@ -138,7 +138,6 @@ class Pattern:
         # 转换为Pattern序列格式
         seq = []
         for state_id, duration_count in merged_states:
-            logger.error(f"{state_id}: {duration_count}, {type(duration_count)}, {type(state_id)}")
             # 验证状态ID
             if not isinstance(state_id, int) or state_id < 0:
                 raise ValueError(f"无效的状态ID: {state_id}")

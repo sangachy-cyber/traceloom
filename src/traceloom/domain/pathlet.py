@@ -152,6 +152,8 @@ class Pathlet:
     """逻辑轨迹名（不含路径/扩展名）"""
     start_index: int
     """径元在轨迹中的起始索引"""
+    dataset: str
+    """数据集划分标识（train/test/val）"""
 
     body: BodyObservations
     """主体观测数据"""

@@ -48,7 +48,7 @@ def reweave(input_file: str, output: str = "output.txt") -> dict:
     return result
 
 
-def embroider(input_pattern: str, output: str = "output.txt") -> dict:
+def stitch(input_pattern: str, output: str = "output.txt") -> dict:
     """绣织：按织样构造高质量路径（【质径】）。
 
     参数:
@@ -89,7 +89,7 @@ def dream(input_pattern: str, output: str = "output.txt") -> dict:
 
 
 # 支持 traceloom 别名
-__all__ = ["reweave", "embroider", "dream", "Pattern", "WeavingEngine"]
+__all__ = ["reweave", "stitch", "dream", "Pattern", "WeavingEngine"]
 
 # 实现 traceloom 别名
 # 获取当前模块对象

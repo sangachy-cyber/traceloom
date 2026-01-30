@@ -51,6 +51,7 @@ def test_full_storage_flow():
             pathlet_id="pathlet_001",
             trace_name="test_trace",
             start_index=0,
+            dataset="train",
             body=BodyObservations(observations=body_observations1),
             tail=TailObservations(observations=tail_observations1),
             is_valid=True,
@@ -85,13 +86,14 @@ def test_full_storage_flow():
             pathlet_id="pathlet_002",
             trace_name="test_trace",
             start_index=100,
+            dataset="train",
             body=BodyObservations(observations=body_observations2),
             tail=TailObservations(observations=tail_observations2),
             is_valid=True,
         )
 
         # 保存数据
-        storage.save_pathlets([pathlet1, pathlet2])
+        storage.save_pathlets([pathlet1, pathlet2], update_points=True)
 
         # 加载数据
         loaded_pathlets = storage.load_pathlets()

@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 
 from traceloom.core.logger import logger
 from traceloom.services.weaver_service import WeaverService
+from traceloom.storage.pathlet_storage import PathletStorage
 from traceloom.storage.task_store import TaskStore
 
 from .schemas import (
@@ -26,7 +27,8 @@ router = APIRouter()
 
 # 初始化服务
 task_store = TaskStore()
-weaver_service = WeaverService(task_store)
+pathlet_storage = PathletStorage()
+weaver_service = WeaverService(task_store, pathlet_storage)
 
 
 @router.get("/health", response_model=HealthCheckResponse, tags=["system"])

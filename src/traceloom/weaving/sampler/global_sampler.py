@@ -44,13 +44,15 @@ class GlobalSampler:
         """
         state_pathlet_map = {}
         try:
-            # 尝试获取状态分布
-            state_distribution = self.pathlet_storage.get_state_distribution()
-            for state_id in state_distribution.keys():
-                # 加载指定状态的径元
-                pathlets = self.pathlet_storage.load_pathlets(state_id=state_id)
-                if pathlets:
-                    state_pathlet_map[state_id] = pathlets
+            # 一次加载所有有效的径元
+            all_valid_pathlets = self.pathlet_storage.load_pathlets(is_valid=True)
+
+            # 在内存中按状态ID分组
+            for pathlet in all_valid_pathlets:
+                state_id = pathlet.state_label.state_id
+                if state_id not in state_pathlet_map:
+                    state_pathlet_map[state_id] = []
+                state_pathlet_map[state_id].append(pathlet)
         except Exception as e:
             logger.warning(f"构建状态-径元映射失败: {e}")
         return state_pathlet_map

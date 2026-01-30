@@ -786,13 +786,17 @@ class HoloWANTrace:
             body_observations = observations[:window_size]
             tail_observations = observations[window_size:]
 
+            # 检查窗口有效性 - 检查所有 110 个点
+            is_valid = _is_window_valid(window, check_size=total_window_size)
+
             pathlet = Pathlet(
                 pathlet_id=pathlet_id,
                 trace_name=self.file_name,
                 start_index=start,
                 body=BodyObservations(observations=body_observations),
                 tail=TailObservations(observations=tail_observations),
-                is_valid=True,  # Default to valid, filtering is handled elsewhere
+                dataset="train",  # 默认数据集为train
+                is_valid=is_valid,  # 设置真实的有效性
             )
             yield pathlet
             start += step
@@ -850,10 +854,11 @@ class HoloWANTrace:
             print(f"Pathlet ID: {valid_pathlets[0].pathlet_id}")
             print(f"Observations count: {len(valid_pathlets[0].observations)}")  # 输出: 110
         """
+        total_window_size = window_size + extension_size
         for pathlet in self.extended_sliding_windows(window_size, extension_size, step):
             # Convert Observation objects back to HoloWANPoint objects for validation
             window_points = [HoloWANPoint.from_observation(obs) for obs in pathlet.observations]
-            if _is_window_valid(window_points, check_size=window_size):
+            if _is_window_valid(window_points, check_size=total_window_size):
                 yield pathlet
 
     # def get_filtered_windows_with_stats(
@@ -970,8 +975,9 @@ class HoloWANTrace:
             # Convert Observation objects back to HoloWANPoint objects for validation
             window_points = [HoloWANPoint.from_observation(obs) for obs in pathlet.observations]
 
-            # 只检查窗口的前 window_size 个数据点
-            check_window = window_points[:window_size]
+            # 检查所有 110 个数据点
+            total_window_size = window_size + extension_size
+            check_window = window_points[:total_window_size]
 
             # Check large delay
             if _has_large_delay(check_window, threshold=2000.0):

@@ -237,23 +237,23 @@ def main():
     logger.info("=== 演示使用其他引擎 ===")
     engines = ["weave", "stitch", "dream"]
 
-    for test_engine in engines:
-        try:
-            logger.info(f"使用 {test_engine} 引擎创建任务")
-            test_task_response = create_task(
-                engine=test_engine,
-                target_ip=target_ip,
-                weaving_pattern=weaving_pattern,
-                impairment_device=impairment_device,
-            )
-            logger.info(f"{test_engine} 引擎创建任务结果: {test_task_response}")
-
-            # 停止测试任务
-            test_task_id = test_task_response["task_id"]
-            stop_task(test_engine, test_task_id)
-            logger.info(f"{test_engine} 引擎任务已停止")
-        except Exception as e:
-            logger.error(f"使用 {test_engine} 引擎失败: {e}")
+    # for test_engine in engines:
+    #     try:
+    #         logger.info(f"使用 {test_engine} 引擎创建任务")
+    #         test_task_response = create_task(
+    #             engine=test_engine,
+    #             target_ip=target_ip,
+    #             weaving_pattern=weaving_pattern,
+    #             impairment_device=impairment_device,
+    #         )
+    #         logger.info(f"{test_engine} 引擎创建任务结果: {test_task_response}")
+    #
+    #         # 停止测试任务
+    #         test_task_id = test_task_response["task_id"]
+    #         stop_task(test_engine, test_task_id)
+    #         logger.info(f"{test_engine} 引擎任务已停止")
+    #     except Exception as e:
+    #         logger.error(f"使用 {test_engine} 引擎失败: {e}")
 
     logger.info("TraceLoom API 示例脚本完成")
     print("TraceLoom API 示例脚本完成")

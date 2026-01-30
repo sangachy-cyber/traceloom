@@ -14,8 +14,10 @@ from traceloom.app.api.v1.schemas import WeaveRequest
 from traceloom.devices import HoloWAN
 from traceloom.domain.pattern import PatternParser
 from traceloom.io.adapters._holowan import HoloWANTrace
+from traceloom.storage.pathlet_storage import PathletStorage
 from traceloom.storage.task_store import TaskStore
 from traceloom.weaving.engines import select_engine
+from traceloom.weaving.sampler.global_sampler import GlobalSampler
 
 
 class WeaverService:
@@ -38,14 +40,20 @@ class WeaverService:
         weaver_service.execute_task(task_id, request)
     """
 
-    def __init__(self, task_store: TaskStore):
+    def __init__(self, task_store: TaskStore, pathlet_storage: PathletStorage = None):
         """初始化编织服务
 
         参数:
             task_store: 任务存储实例
+            pathlet_storage: 径元存储实例，若为 None 则创建默认实例
         """
         logger.info("初始化 WeaverService 开始")
         self.task_store = task_store
+        # 初始化径元存储
+        self.pathlet_storage = pathlet_storage or PathletStorage()
+        # 初始化全局采样器
+        self.sampler = GlobalSampler(self.pathlet_storage)
+        logger.info("全局采样器初始化完成")
         # 初始化回放文件存储目录
         self.playback_dir = Path("tmp/playback")
         logger.debug(f"回放文件存储目录: {self.playback_dir}")
@@ -71,18 +79,29 @@ class WeaverService:
             pattern = PatternParser.parse(request.weaving_pattern)
             engine = select_engine(pattern)  # 返回 Reweaver/Stitcher/Dreamer
             logger.info(f"选择的引擎类型: {type(engine).__name__}")
-            observations = engine.weave(pattern)
+            observations = engine.weave(pattern, self.sampler)
             logger.debug(f"生成的观测数据数量: {len(observations)}")
 
             # 2. 转为 HoloWAN 文件
             logger.info("步骤 2: 转换为 HoloWAN 文件")
-            holowan_trace = HoloWANTrace()
-            # 转换观测数据为数据点
-            holowan_trace.data_points = [holowan_trace._observation_to_data_point(obs) for obs in observations]
-            logger.info(f"数据点数量: {len(holowan_trace.data_points)}")
-            # 生成严格格式的 HoloWAN 回放内容
-            holowan_content = holowan_trace.dump()
+            holowan_trace = HoloWANTrace.from_observations(observations)
+            import tempfile
+
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+                temp_file_path = f.name
+
+            # 调用 dump 方法写入临时文件
+            holowan_trace.dump(temp_file_path)
             logger.debug("HoloWAN 回放内容生成完成")
+
+            # 读取临时文件内容
+            with open(temp_file_path, "r") as f:
+                holowan_content = f.read()
+
+            # 清理临时文件
+            import os
+
+            os.unlink(temp_file_path)
 
             # 3. 保存回放文件到服务端（用于下载）
             logger.info("步骤 3: 保存回放文件到服务端")

@@ -44,6 +44,7 @@ def test_data():
         pathlet_id="pathlet_001",
         trace_name="test_trace",
         start_index=0,
+        dataset="train",
         body=BodyObservations(observations=body_observations),
         tail=TailObservations(observations=tail_observations),
         is_valid=True,
@@ -77,18 +78,19 @@ def test_data():
     pathlet2 = Pathlet(
         pathlet_id="pathlet_002",
         trace_name="test_trace",
-        start_index=90,  # 与pathlet1重叠10个点
+        start_index=50,
+        dataset="train",
         body=BodyObservations(observations=body_observations2),
         tail=TailObservations(observations=tail_observations2),
         is_valid=True,
     )
 
-    return {"pathlets": [pathlet1, pathlet2]}
+    return [pathlet1, pathlet2]
 
 
 def test_pathlets_to_storage(test_data):
     """测试 pathlets_to_storage 方法"""
-    pathlets = test_data["pathlets"]
+    pathlets = test_data
 
     # 转换数据
     metadata_df, points_df = PathletStorage.pathlets_to_storage(pathlets)
@@ -113,9 +115,11 @@ def test_pathlets_to_storage(test_data):
     assert "bw_down" in points_df.columns
 
     # 验证数据去重
-    # pathlet1 有110个点(100+10)，pathlet2 有110个点，重叠20个点
-    # 去重后应该有 110 + 110 - 20 = 200 个点
-    assert len(points_df) == 200
+    # pathlet1 有110个点(100+10)，索引范围0-109
+    # pathlet2 有110个点，索引范围50-159
+    # 重叠部分是索引50-109，共60个点
+    # 去重后应该有 110 + 110 - 60 = 160 个点
+    assert len(points_df) == 160
 
     # 验证 pathlet_ids 数组
     for _, row in points_df.iterrows():
@@ -125,7 +129,7 @@ def test_pathlets_to_storage(test_data):
 
 def test_storage_to_pathlets(test_data):
     """测试 storage_to_pathlets 方法"""
-    pathlets = test_data["pathlets"]
+    pathlets = test_data
 
     # 先转换为存储结构
     metadata_df, points_df = PathletStorage.pathlets_to_storage(pathlets)
@@ -149,7 +153,7 @@ def test_storage_to_pathlets(test_data):
 
 def test_round_trip_conversion(test_data):
     """测试往返转换"""
-    pathlets = test_data["pathlets"]
+    pathlets = test_data
 
     # 第一次转换
     metadata_df, points_df = PathletStorage.pathlets_to_storage(pathlets)
