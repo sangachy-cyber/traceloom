@@ -119,8 +119,14 @@ class PathletStorage:
         self.pathlet_dir = storage_dir
         self.pathlet_dir.mkdir(exist_ok=True, parents=True)
 
-        # 点数据文件 - 存储径元的详细观测数据（静态数据）
+        # 点数据目录 - 存储径元的详细观测数据（静态数据）
         self.points_file = self.pathlet_dir / "pathlets_points.parquet"
+        # 如果 points_file 是一个文件，则删除它并创建一个目录
+        if self.points_file.exists() and self.points_file.is_file():
+            self.points_file.unlink()
+            logger.warning(f"已删除点数据文件，将创建目录: {self.points_file}")
+        # 创建 points_file 目录
+        self.points_file.mkdir(exist_ok=True, parents=True)
         # 主数据文件 - 存储径元的基本信息，如ID、状态、轨迹名称等（动态数据，需要刷新）
         self.main_data_file = self.pathlet_dir / "pathlets.parquet"
         # GMM模型文件 - 存储训练好的聚类模型
@@ -778,8 +784,9 @@ class PathletStorage:
             logger.info(f"已删除主数据文件: {self.main_data_file}")
 
         if self.points_file.exists():
-            self.points_file.unlink()
-            logger.info(f"已删除点数据文件: {self.points_file}")
+            import shutil
+            shutil.rmtree(self.points_file)
+            logger.info(f"已删除点数据目录: {self.points_file}")
 
         if self.gmm_model_file.exists():
             self.gmm_model_file.unlink()
