@@ -112,7 +112,6 @@ class PathletStorage:
         """
         # 确保存储目录路径一致
         storage_dir = pathlet_dir or settings.PATHLETS_DIR
-        dir_key = str(storage_dir.absolute())
 
         # 检查是否已经初始化过
         if hasattr(self, "_initialized") and self._initialized:
@@ -360,21 +359,27 @@ class PathletStorage:
         # 转换为Arrow表
         table = pa.Table.from_pandas(points)
 
-        # 清空目录，确保不会有重复文件
-        if self.points_file.exists():
-            import shutil
-            for item in self.points_file.iterdir():
-                if item.is_dir():
-                    shutil.rmtree(item)
+        # 按trace_name分组写入固定文件名
+        for trace_name, group in points.groupby("trace_name"):
+            # 创建trace_name对应的子目录
+            trace_dir = self.points_file / f"trace_name={trace_name}"
+            trace_dir.mkdir(exist_ok=True, parents=True)
+            
+            # 清空目录中的旧文件，只保留固定文件名的文件
+            for item in trace_dir.iterdir():
+                if item.name != "points.parquet":
+                    item.unlink()
+            
+            # 使用固定的文件名
+            file_path = trace_dir / "points.parquet"
+            
+            # 转换分组数据为Arrow表
+            group_table = pa.Table.from_pandas(group)
+            
+            # 写入单个文件
+            pq.write_table(group_table, str(file_path), compression="ZSTD")
 
-        # 按trace_name分区写入
-        pq.write_to_dataset(
-            table,
-            root_path=str(self.points_file),
-            partition_cols=["trace_name"],
-            compression="ZSTD",
-            use_dictionary=True,
-        )
+        logger.info(f"点数据已写入到 {self.points_file}，使用固定文件名")
 
     def _read_main_data(self) -> pd.DataFrame:
         """从Parquet文件读取主数据（pathlets.parquet）。
