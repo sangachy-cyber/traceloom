@@ -78,7 +78,7 @@ class Stitcher:
         except Exception as e:
             logger.error(f"绣织操作失败: {e}")
             # 如果采样失败，使用模拟数据作为 fallback
-            for state, duration in pattern.sequence:
+            for _state, duration in pattern.sequence:
                 for _ in range(duration * 10):  # 10 Hz 采样率
                     observations.append([50.0, 0.01, 50.0, 50.0, 0.01, 50.0])
 

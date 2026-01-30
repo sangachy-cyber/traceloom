@@ -4,17 +4,12 @@
 实现 GMM 聚类器和 t-SNE 可视化工具
 """
 
-from pathlib import Path
-from typing import Any, Dict, List
+from typing import List
 
-import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.manifold import TSNE
 from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import RobustScaler
 
-from traceloom.core.logger import logger
-from traceloom.core.utils import setup_chinese_font
 from traceloom.domain.features import GMMFeatureExtractor
 
 

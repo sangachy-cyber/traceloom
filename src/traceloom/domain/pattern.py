@@ -9,8 +9,6 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
-from loguru import logger
-
 from traceloom.core.exceptions import ValidationError
 
 

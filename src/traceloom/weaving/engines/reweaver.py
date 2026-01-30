@@ -6,7 +6,7 @@
 from typing import List
 
 from traceloom.core.logger import logger
-from traceloom.domain.pathlet import BodyObservations, Observation, Pathlet, TailObservations
+from traceloom.domain.pathlet import Pathlet
 from traceloom.domain.pattern import Pattern
 from traceloom.io.adapters import HoloWANTrace
 from traceloom.io.adapters._holowan import HoloWANDirection, HoloWANPoint

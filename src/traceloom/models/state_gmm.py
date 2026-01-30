@@ -4,20 +4,19 @@
 实现 GMM 模型，支持训练和推理，包含与训练侧完全一致的特征提取逻辑。
 """
 
+import warnings
 from pathlib import Path
 from typing import List, Optional
 
 import joblib
 import numpy as np
-import warnings
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import StandardScaler
-from sklearn.exceptions import ConvergenceWarning
 
 from traceloom.core.logger import logger
 from traceloom.domain.pathlet import Observation, Pathlet
 from traceloom.domain.state import StateLabel
-
 
 # 忽略GMM收敛警告
 warnings.filterwarnings("ignore", category=ConvergenceWarning)
@@ -165,7 +164,7 @@ class StateGMM:
         # 提取特征
         features = []
         empty_observations_count = 0
-        for i, pathlet in enumerate(pathlets):
+        for _i, pathlet in enumerate(pathlets):
             # 从主干观测数据中提取特征
             observations = pathlet.body.observations
 
@@ -199,7 +198,7 @@ class StateGMM:
 
             # 统计聚类结果
             unique_labels, counts = np.unique(self._labels, return_counts=True)
-            label_counts = dict(zip(unique_labels, counts))
+            label_counts = dict(zip(unique_labels, counts, strict=True))
             logger.info(f"GMM 聚类结果: {label_counts}")
             logger.info(f"GMM 模型拟合完成，n_components={self.n_components}")
         else:

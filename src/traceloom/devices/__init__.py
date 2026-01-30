@@ -1,1 +1,1 @@
-from ._holowan import HoloWAN
+from ._holowan import HoloWAN as HoloWAN

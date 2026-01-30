@@ -16,7 +16,7 @@ import pyarrow.parquet as pq
 from traceloom.core.config import settings
 from traceloom.core.logger import logger
 from traceloom.domain.pathlet import BodyObservations, Observation, Pathlet, TailObservations
-from traceloom.storage.schemas import PointDataFields, PathletMetadataFields
+from traceloom.storage.schemas import PathletMetadataFields, PointDataFields
 
 
 @dataclass
@@ -263,7 +263,7 @@ class PathletStorage:
             # 使用固定字段名
             id_column = PointDataFields.PATHLET_IDS
 
-            for idx, row in points_df.iterrows():
+            for _idx, row in points_df.iterrows():
                 # 直接使用 pathlet_ids 字段
                 pathlet_ids = row[id_column]
 
@@ -630,7 +630,7 @@ class PathletStorage:
             metadata: 元信息DataFrame
         """
         # 转换为Arrow表
-        table = pa.Table.from_pandas(metadata)
+        # 注意：这里不需要保存Arrow表，因为我们直接使用Pandas DataFrame
 
     def _write_points(self, points: pd.DataFrame) -> None:
         """写入点数据到Parquet文件。
@@ -911,7 +911,7 @@ class PathletStorage:
 
         # 检查是否存在点数据
         if points_df.empty:
-            logger.warning(f"点数据文件为空")
+            logger.warning("点数据文件为空")
             return None
 
         # 确定使用哪个字段来存储径元ID

@@ -30,7 +30,7 @@ def connect_device(holowan_manager):
 
 def check_playback_file(playback_file_path):
     """检查回放文件是否存在"""
-    logger.info(f"\n2. 检查回放文件...")
+    logger.info("\n2. 检查回放文件...")
     if not playback_file_path.exists():
         logger.warning(f"⚠️  回放文件不存在: {playback_file_path}")
         logger.info("创建示例回放文件...")
@@ -71,7 +71,7 @@ def bind_ip_to_path(holowan_manager, target_ip, path_id):
 
 def upload_and_apply_playback(holowan_manager, playback_file_path, playback_name, path_id):
     """上传并应用回放文件"""
-    logger.info(f"\n5. 上传并应用回放文件...")
+    logger.info("\n5. 上传并应用回放文件...")
     try:
         holowan_manager.upload_and_apply_playback(str(playback_file_path), playback_name, path_id)
         logger.info("✅ 回放文件上传并应用成功")
@@ -83,17 +83,17 @@ def upload_and_apply_playback(holowan_manager, playback_file_path, playback_name
 
 def generate_temp_playback_file(output_path):
     """生成临时回放文件
-    
+
     根据指定内容生成临时回放文件
-    
+
     Args:
         output_path: 输出文件路径
-    
+
     Returns:
         Path: 生成的文件路径
     """
-    logger.info(f"\n生成临时回放文件...")
-    
+    logger.info("\n生成临时回放文件...")
+
     # 回放文件内容
     playback_content = """HoloWAN Recorder File (www.msytest.com)
  NetworkType: "4G"
@@ -127,16 +127,16 @@ Switch: 1,1,1,1,1,1
 13.243500,0.000000,0.051200,13.280000,0.000000,0.051200
 17.396500,0.000000,0.025600,13.046500,0.000000,0.051200
 """
-    
+
     # 确保输出目录存在
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # 写入文件
     with open(output_path, "w") as f:
         f.write(playback_content)
-    
+
     logger.info(f"✅ 临时回放文件生成成功: {output_path}")
-    
+
     return output_path
 
 

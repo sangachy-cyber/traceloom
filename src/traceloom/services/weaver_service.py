@@ -4,7 +4,6 @@
 实现织径任务的执行逻辑，协调编织引擎、HoloWAN 适配器和设备管理
 """
 
-import tempfile
 import time
 from pathlib import Path
 
@@ -309,7 +308,7 @@ class WeaverService:
             # 更新状态
             logger.info("步骤 5: 更新任务状态")
             self.task_store.update_status(task_id, "completed", error="任务被用户取消")
-            logger.info(f"任务状态更新为: completed, 错误信息: 任务被用户取消")
+            logger.info("任务状态更新为: completed, 错误信息: 任务被用户取消")
 
             logger.info(f"取消任务完成，task_id: {task_id}")
 

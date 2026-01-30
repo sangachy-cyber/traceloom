@@ -8,6 +8,10 @@ import time
 from pathlib import Path
 from typing import Any, Dict
 
+from loguru import logger
+
+from traceloom.core.config import settings
+
 # 添加src到Python路径
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
@@ -20,8 +24,6 @@ except ImportError:
     sys.exit(1)
 
 # 配置日志，只输出到文件，不输出到控制台
-from loguru import logger
-
 logger.remove()  # 移除默认的控制台输出
 
 # 先创建输出目录，避免导入settings时的依赖问题
@@ -30,9 +32,6 @@ output_dir.mkdir(parents=True, exist_ok=True)
 
 # 配置日志文件
 logger.add(output_dir / "api_example.log", rotation="10 MB", compression="zip", level="INFO")
-
-# 导入settings
-from traceloom.core.config import settings
 
 # API 基础 URL
 API_BASE_URL = "http://localhost:8000/api/v1"
@@ -235,8 +234,8 @@ def main():
 
     # 7. 演示使用其他引擎
     logger.info("=== 演示使用其他引擎 ===")
-    engines = ["weave", "stitch", "dream"]
 
+    # 可用引擎列表: ["weave", "stitch", "dream"]
     # for test_engine in engines:
     #     try:
     #         logger.info(f"使用 {test_engine} 引擎创建任务")

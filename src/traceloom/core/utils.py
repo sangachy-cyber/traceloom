@@ -1,6 +1,5 @@
 import os
 import sys
-from pathlib import Path
 
 from traceloom.core.logger import logger
 

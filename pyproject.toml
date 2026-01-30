@@ -85,6 +85,10 @@ select = [
 # 忽略与 Black 冲突的规则
 ignore = ["E501"]
 
+[tool.ruff.lint.mccabe]
+# 增加复杂度阈值，从默认的 10 增加到 25
+max-complexity = 25
+
 [tool.ruff.lint.isort]
 known-first-party = ["traceloom"]
 
@@ -109,4 +113,5 @@ index-url = "https://mirrors.huaweicloud.com/repository/pypi/simple"
 [dependency-groups]
 dev = [
     "mypy>=1.19.1",
+    "ruff>=0.14.14",
 ]

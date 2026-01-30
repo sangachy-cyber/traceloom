@@ -72,13 +72,9 @@ class Preprocessor:
         # 创建 PathletStorage 实例
         storage = PathletStorage(self.pathlet_dir)
 
-        # 构建 raw_trace_segment_map
-        raw_trace_segment_map = {}
+        # 遍历径元，检查观测数据
         for pathlet in pathlets:
             try:
-                trace_name = pathlet.trace_name
-                start_index = pathlet.start_index
-
                 # 从径元的 body 和 tail 中提取观测数据
                 observations = []
 

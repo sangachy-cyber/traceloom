@@ -88,7 +88,7 @@ def _get_profile_data(profiles: List[Union[RawProfile, ProcessedProfile]], featu
                 feature_values.append(obs.bw_up)
             elif feature == "bw_down":
                 feature_values.append(obs.bw_down)
-        
+
         # 计算均值并添加到结果列表
         if feature_values:
             mean_value = sum(feature_values) / len(feature_values)

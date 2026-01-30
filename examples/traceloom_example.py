@@ -59,7 +59,7 @@ def main():
 
     except NotImplementedError:
         logger.info("功能尚未实现，跳过该操作")
-    except Exception as e:
+    except Exception:
         logger.error(f"API调用失败: {traceback.print_exc()}", exc_info=True)
 
     logger.info("TraceLoom示例脚本完成")

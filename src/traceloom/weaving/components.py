@@ -6,11 +6,9 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from random import choice
-from typing import List, Tuple
+from typing import List
 
 from traceloom.core.config import settings
-from traceloom.core.exceptions import PathletSamplingError
 from traceloom.core.logger import logger
 from traceloom.domain.pathlet import Pathlet
 from traceloom.models.state_gmm import StateGMM
@@ -42,11 +40,11 @@ class WeavingLawEngine:
         # 预测状态
         # 创建示例径元
         body = BodyObservations(
-            observations=[Observation(delay_up=100.0, loss_up=0.01, bw_up=10.0, 
+            observations=[Observation(delay_up=100.0, loss_up=0.01, bw_up=10.0,
                                     delay_down=100.0, loss_down=0.01, bw_down=10.0) for _ in range(100)]
         )
         tail = TailObservations(
-            observations=[Observation(delay_up=100.0, loss_up=0.01, bw_up=10.0, 
+            observations=[Observation(delay_up=100.0, loss_up=0.01, bw_up=10.0,
                                     delay_down=100.0, loss_down=0.01, bw_down=10.0) for _ in range(10)]
         )
         pathlet = Pathlet(
