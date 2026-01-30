@@ -68,6 +68,8 @@ class PathletStorage:
 
     # 单例模式实现
     _instances: Dict[str, "PathletStorage"] = {}
+    # 点数据加载标记（类变量，确保在整个应用程序运行期间保持一致）
+    _points_loaded: bool = False
 
     def __new__(cls, pathlet_dir: Optional[Path] = None):
         """创建或获取PathletStorage实例
@@ -137,7 +139,6 @@ class PathletStorage:
         # 缓存配置
         self._main_data_cache: Optional[pd.DataFrame] = None  # 主数据缓存（pathlets.parquet）
         self._points_cache: Optional[pd.DataFrame] = None  # 点数据缓存（pathlets_points.parquet，静态）
-        self._points_loaded = False  # 标记点数据是否已加载（静态数据只加载一次）
         self._cache_timestamp: Dict[str, float] = {}
         self._cache_expiry_seconds = 300  # 缓存过期时间，5分钟
         self._cache_size_limit = 100000  # 缓存大小限制（行数）
@@ -254,9 +255,9 @@ class PathletStorage:
         self._write_main_data(combined_main_df)
 
         # 只有当点数据尚未加载时才写入（静态数据）
-        if not self._points_loaded:
+        if not PathletStorage._points_loaded:
             self._write_points(new_points_df)
-            self._points_loaded = True
+            PathletStorage._points_loaded = True
 
         # 清除缓存，确保下次读取时能获取最新数据
         self.clear_cache()
@@ -307,9 +308,9 @@ class PathletStorage:
             return []
 
         # 读取点数据（静态数据，只加载一次）
-        if not self._points_loaded:
+        if not PathletStorage._points_loaded:
             points_df = self._read_points()
-            self._points_loaded = True
+            PathletStorage._points_loaded = True
         else:
             # 使用缓存的点数据
             if self._points_cache is not None:
@@ -358,6 +359,13 @@ class PathletStorage:
 
         # 转换为Arrow表
         table = pa.Table.from_pandas(points)
+
+        # 清空目录，确保不会有重复文件
+        if self.points_file.exists():
+            import shutil
+            for item in self.points_file.iterdir():
+                if item.is_dir():
+                    shutil.rmtree(item)
 
         # 按trace_name分区写入
         pq.write_to_dataset(
@@ -428,7 +436,7 @@ class PathletStorage:
             self._points_cache = df
 
         # 标记点数据已加载
-        self._points_loaded = True
+        PathletStorage._points_loaded = True
 
         return df
 
@@ -797,7 +805,7 @@ class PathletStorage:
             logger.info(f"已删除状态映射文件: {self.state_mapping_file}")
 
         # 重置静态数据加载标记
-        self._points_loaded = False
+        PathletStorage._points_loaded = False
 
         logger.info(f"已清空Pathlet数据目录: {self.pathlet_dir}")
 
