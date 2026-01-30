@@ -30,8 +30,7 @@ import numpy as np
 
 from traceloom.core.exceptions import DataError, FileOperationError, ValidationError
 from traceloom.core.logger import get_logger
-from traceloom.domain.pathlet import Observation
-from traceloom.domain.pathlet import Pathlet
+from traceloom.domain.pathlet import Observation, Pathlet
 
 # 获取日志实例
 logger = get_logger()
@@ -653,8 +652,8 @@ class HoloWANTrace:
             path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "w", encoding="utf-8") as f:
                 # 写入标准 HoloWAN 文件头
-                f.write("# HoloWAN Playback v1.0\n")
-                f.write(f'Operator: "{self.operator}" NetworkType: "{self.network_type}"\n')
+                f.write("HoloWAN Recorder File (www.msytest.com)\n")
+                f.write(f'Operator: "{self.operator}" NetworkType: "{self.network_type}"')
                 f.write(f" SignalStrength: {self.signal_strength}(dbm)\n")
                 f.write(f'test_name: "{self.test_name}"\n')
                 f.write(f'Destination: "{self.destination}"\n')
@@ -662,7 +661,11 @@ class HoloWANTrace:
                 f.write(f"End Time: {self.end_time}\n")
                 f.write(f"Interval(sec): {self.interval_sec}\n")
                 f.write(f"Packet Size(byte): {self.packet_size}\n")
-                f.write(f"Loss Average: {self.loss_average:.2f}\n")
+                # 根据值是否为整数，动态调整小数位数
+                if self.loss_average.is_integer():
+                    f.write(f"Loss Average: {int(self.loss_average)}\n")
+                else:
+                    f.write(f"Loss Average: {self.loss_average:.2f}\n")
                 f.write(f"Enable Reordering: {self.enable_reordering}\n")
                 f.write("Contents: Delay1(ms),Loss1(%),Bandwidth1(Mbps),Delay2(ms),Loss2(%),Bandwidth2(Mbps)\n")
                 f.write(f"Switch: {self.switch}\n")
@@ -671,32 +674,49 @@ class HoloWANTrace:
                 f.write("------------------------------------------------\n")
 
                 # 写入数据点
-                for point in self.points:
-                    row_str = " ".join(f"{x}" for x in point.to_raw_row())
-                    f.write(row_str + "\n")
+                for i, point in enumerate(self.points):
+                    row = point.to_raw_row()
+                    # 为每个字段设置正确的小数位数
+                    # 延迟：两位小数
+                    # 丢包率：两位小数
+                    # 带宽：六位小数
+                    formatted_row = [
+                        f"{row[0]:.2f}",  # 上行延迟
+                        f"{row[1]:.2f}",  # 上行丢包率
+                        f"{row[2]:.6f}",  # 上行带宽
+                        f"{row[3]:.2f}",  # 下行延迟
+                        f"{row[4]:.2f}",  # 下行丢包率
+                        f"{row[5]:.6f}",  # 下行带宽
+                    ]
+                    row_str = ",".join(formatted_row)
+                    # 确保最后一行不为空：只在非最后一行添加换行符
+                    if i < len(self.points) - 1:
+                        f.write(row_str + "\n")
+                    else:
+                        f.write(row_str)
             logger.info(f"成功写入 HoloWAN 轨迹文件，包含 {len(self.points)} 个轨迹点")
         except Exception as e:
             raise FileOperationError(f"Failed to write file: {file_path}") from e
 
     # def sliding_windows(self, window_size: int = 100, step: int = 50) -> Iterator[List[HoloWANPoint]]:
     #     """生成滑动窗口
-    #
+
     #     生成滑动窗口（长度=100，步长=50），不应用过滤。
-    #
+
     #     Args:
     #         window_size: int, optional
     #             窗口大小，默认值为 100
     #         step: int, optional
     #             步长，默认值为 50
-    #
+
     #     Returns:
     #         Iterator[List[HoloWANPoint]]
     #             滑动窗口的迭代器
-    #
+
     #     Raises:
     #         ValidationError
     #             如果 window_size 或 step 不是正整数
-    #
+
     #     示例:
     #         for window in trace.sliding_windows(window_size=50, step=25):
     #             print(f"Window size: {len(window)}")
@@ -779,21 +799,21 @@ class HoloWANTrace:
 
     # def filtered_sliding_windows(self, window_size: int = 100, step: int = 50) -> Iterator[List[HoloWANPoint]]:
     #     """生成过滤后的滑动窗口
-    #
+
     #     生成滑动窗口并应用质量过滤器：
     #     - 丢弃任何延迟 > 2000 ms 的窗口
     #     - 丢弃包含 10+ 个连续相同延迟值（上行或下行）的窗口
-    #
+
     #     Args:
     #         window_size: int, optional
     #             窗口大小，默认值为 100
     #         step: int, optional
     #             步长，默认值为 50
-    #
+
     #     Returns:
     #         Iterator[List[HoloWANPoint]]
     #             过滤后的滑动窗口的迭代器
-    #
+
     #     示例:
     #         valid_windows = list(trace.filtered_sliding_windows())
     #         print(f"Valid windows: {len(valid_windows)}")
@@ -840,15 +860,15 @@ class HoloWANTrace:
     #     self, window_size: int = 100, step: int = 50
     # ) -> tuple[List[List[HoloWANPoint]], dict]:
     #     """获取过滤后的窗口和统计信息
-    #
+
     #     返回所有有效的窗口和详细的过滤统计信息。
-    #
+
     #     Args:
     #         window_size: int, optional
     #             窗口大小，默认值为 100
     #         step: int, optional
     #             步长，默认值为 50
-    #
+
     #     Returns:
     #         tuple[List[List[HoloWANPoint]], dict]
     #             - 有效的窗口列表
@@ -858,7 +878,7 @@ class HoloWANTrace:
     #                 - filtered_by_large_delay: 因大延迟被过滤的窗口数
     #                 - filtered_by_consecutive_delay: 因连续延迟被过滤的窗口数
     #                 - valid_ratio: 有效窗口比例
-    #
+
     #     示例:
     #         windows, stats = trace.get_filtered_windows_with_stats()
     #         print(f"Valid ratio: {stats['valid_ratio']:.2f}")
@@ -867,34 +887,34 @@ class HoloWANTrace:
     #     valid = 0
     #     by_large_delay = 0
     #     by_consecutive = 0
-    #
+
     #     valid_windows = []
-    #
+
     #     for window in self.sliding_windows(window_size, step):
     #         total += 1
-    #
+
     #         # 只检查窗口的前 window_size 个数据点
     #         check_window = window[:window_size]
-    #
+
     #         # Check large delay
     #         if _has_large_delay(check_window, threshold=2000.0):
     #             by_large_delay += 1
     #             continue
-    #
+
     #         # Check consecutive equal delays
     #         up_delays = [p.up.delay for p in check_window]
     #         down_delays = [p.down.delay for p in check_window]
     #         has_consec_up = _has_consecutive_equal_delays(up_delays, min_consecutive=10)
     #         has_consec_down = _has_consecutive_equal_delays(down_delays, min_consecutive=10)
-    #
+
     #         if has_consec_up or has_consec_down:
     #             by_consecutive += 1
     #             continue
-    #
+
     #         # If passed all checks
     #         valid += 1
     #         valid_windows.append(window)
-    #
+
     #     stats = {
     #         "total_windows": total,
     #         "valid_windows": valid,
@@ -936,7 +956,6 @@ class HoloWANTrace:
             print(f"Pathlet ID: {valid_pathlets[0].pathlet_id}")
             print(f"Observations count: {len(valid_pathlets[0].observations)}")  # 输出: 110
         """
-        from traceloom.domain.pathlet import Pathlet
 
         total = 0
         valid = 0
