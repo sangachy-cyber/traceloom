@@ -6,8 +6,10 @@
 
 import sqlite3
 from datetime import datetime, timezone
+from pathlib import Path
 
 from traceloom.app.api.v1.schemas import WeaveRequest
+from traceloom.core.config import settings
 
 
 class TaskStore:
@@ -33,12 +35,17 @@ class TaskStore:
         task_store.update_status(task_id, "failed", error="执行失败")
     """
 
-    def __init__(self, db_path: str = "weaver_tasks.db"):
+    def __init__(self, db_path: Path = None):
         """初始化任务存储。
 
         参数:
-            db_path: SQLite 数据库文件路径
+            db_path: SQLite 数据库文件路径，默认使用 settings.DB_DIR / "weaver_tasks.db"
         """
+
+        if db_path is None:
+            db_path = settings.DB_DIR / "weaver_tasks.db"
+            # 确保数据库目录存在
+            db_path.parent.mkdir(parents=True, exist_ok=True)
 
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self._init_db()

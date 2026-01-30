@@ -41,7 +41,11 @@ class Settings(BaseSettings):
     """.BeforeLabel 目录，用于存储.BeforeLabel 文件"""
 
     AFTER_LABEL_DIR: Path = DATA_DIR / "after_label"
-    """.AfterLabel 目录，用于存储.AfterLabel 文件"""
+    """.AfterLabel 目录, 用于存储.AfterLabel 文件"""
+
+    # 7. 数据库目录
+    DB_DIR: Path = DATA_DIR / "db"
+    """数据库目录，用于存储 SQLite 数据库文件"""
 
     # 5. 径元结构参数
     BODY_SIZE: int = 100
