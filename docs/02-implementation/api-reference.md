@@ -294,12 +294,12 @@ ProfileSequence(
 
 TraceLoom 提供了三个核心织径函数，用于生成不同类型的网络路径：
 
-#### reweave(input, output="output.txt")
+#### reweave(input_file, output="output.txt")
 
 **重织**：从真实 HoloWAN 文件提取并重组路径（【故径】）。
 
 **参数**：
-- `input` (str): 真实 HoloWAN 文件路径
+- `input_file` (str): 真实 HoloWAN 文件路径
 - `output` (str or Path, optional): 输出文件路径，默认为"output.txt"
 
 **返回值**：
@@ -318,18 +318,18 @@ import traceloom as tl
 
 # 从文件重织
 result = tl.reweave(
-    input="real.txt",
+    input_file="real.txt",
     output="reweave.txt"
 )
 print(result)
 ```
 
-#### embroider(input, output="output.txt")
+#### stitch(input_pattern, output="output.txt")
 
 **绣织**：按织样构造高质量路径（【质径】）。
 
 **参数**：
-- `input` (str): 织样字符串，支持两种格式：
+- `input_pattern` (str): 织样字符串，支持两种格式：
   - 紧凑文本格式："s0x2 -> s2x6"（状态名x时长倍数，时长倍数×10=实际秒数）
   - JSON格式：'[{"state": "s0", "duration": 20}, {"state": "s2", "duration": 60}]'
 - `output` (str or Path, optional): 输出文件路径，默认为"output.txt"
@@ -342,25 +342,25 @@ print(result)
 import traceloom as tl
 
 # 使用紧凑文本格式织样
-result = tl.embroider(
-    input="s0x2 -> s2x6",
-    output="embroider.txt"
+result = tl.stitch(
+    input_pattern="s0x2 -> s2x6",
+    output="stitch.txt"
 )
 
 # 使用JSON格式织样
 json_pattern = '[{"state": "s0", "duration": 20}, {"state": "s2", "duration": 60}]'
-result = tl.embroider(
-    input=json_pattern,
+result = tl.stitch(
+    input_pattern=json_pattern,
     output="json_pattern.txt"
 )
 ```
 
-#### dream(input, output="output.txt")
+#### dream(input_pattern, output="output.txt")
 
 **广织**：生成全新的虚拟路径（【幻径】）。
 
 **参数**：
-- `input` (str): 织样字符串，格式同 `embroider` 函数
+- `input_pattern` (str): 织样字符串，格式同 `stitch` 函数
 - `output` (str or Path, optional): 输出文件路径，默认为"output.txt"
 
 **返回值**：
@@ -372,7 +372,7 @@ import traceloom as tl
 
 # 生成幻径
 result = tl.dream(
-    input="s0x2 -> s2x6",
+    input_pattern="s0x2 -> s2x6",
     output="dreamed.txt"
 )
 ```
@@ -387,16 +387,16 @@ result = tl.dream(
 
 ```python
 NetworkProfileExtractor(
-    window_context_size: int = settings.WINDOW_CONTEXT_SIZE,
-    window_cont_size: int = settings.WINDOW_CONT_SIZE,
-    sliding_step: int = settings.SLIDING_STEP
+    window_context_size: int = settings.BODY_SIZE,
+    window_cont_size: int = settings.TAIL_SIZE,
+    sliding_step: int = settings.BODY_STRIDE
 )
 ```
 
 **参数**：
 - `window_context_size`: 上下文窗口大小（行），默认为100
 - `window_cont_size`: 延续窗口大小（行），默认为10
-- `sliding_step`: 滑动步长（行），默认为50
+- `sliding_step`: 滑动步长（行），默认为100
 
 **返回值**：
 - `NetworkProfileExtractor`: 网络剖面提取器实例
@@ -492,7 +492,7 @@ profiles = extractor.profiles_from_csv(Path("profiles.csv"))
 
 **示例**：
 ```python
-from traceloom.simcore.pathlet.features import extract_16d_features
+from traceloom.core.utils import extract_16d_features
 features = extract_16d_features(profile)  # profile可以是RawProfile或ProcessedProfile
 ```
 
@@ -508,7 +508,7 @@ features = extract_16d_features(profile)  # profile可以是RawProfile或Process
 
 **示例**：
 ```python
-from traceloom.simcore.pathlet.features import extract_features_batch
+from traceloom.core.utils import extract_features_batch
 features = extract_features_batch(profiles)  # profiles可以包含RawProfile或ProcessedProfile
 ```
 
@@ -938,38 +938,49 @@ samples = model.sample(num_samples=3)
 
 ### Settings 类
 
-#### settings.get_config()
+TraceLoom 使用 Pydantic Settings 类进行配置管理，支持直接属性访问和环境变量覆盖。
 
-获取配置值。
+#### 配置访问
 
-**参数**：
-- `key` (str): 配置键名
-
-**返回值**：
-- `Any`: 配置值
+**直接属性访问**：
 
 **示例**：
 ```python
-from traceloom.core import settings
+from traceloom.core.config import settings
 
-rtt_max = settings.get_config("DELAY_MAX")
+# 获取配置值
+body_size = settings.BODY_SIZE
+log_level = settings.LOG_LEVEL
+
+# 配置路径
+output_dir = settings.OUTPUT_DIR
 ```
 
-#### settings.set_config()
+#### 环境变量覆盖
 
-设置配置值（运行时）。
-
-**参数**：
-- `key` (str): 配置键名
-- `value` (Any): 配置值
-
-**返回值**：
-- `None`
+所有配置项都可以通过环境变量覆盖，环境变量前缀为 `TRACELOOM_`。
 
 **示例**：
-```python
-settings.set_config("LOG_LEVEL", "DEBUG")
+```bash
+# 覆盖数据目录
+export TRACELOOM_DATA_DIR=/path/to/data
+
+# 覆盖日志级别
+export TRACELOOM_LOG_LEVEL=DEBUG
 ```
+
+#### 主要配置项
+
+| 配置项 | 类型 | 默认值 | 描述 |
+|-------|------|-------|------|
+| `DATA_DIR` | `Path` | `Path("data")` | 根数据目录 |
+| `OUTPUT_DIR` | `Path` | `DATA_DIR / "outputs"` | 输出目录 |
+| `PATHLETS_DIR` | `Path` | `DATA_DIR / "pathlets" / "default"` | 径元库路径 |
+| `MODELS_DIR` | `Path` | `DATA_DIR / "models" / "default"` | 模型路径 |
+| `BODY_SIZE` | `int` | `100` | 主干长度，径元的主体部分长度 |
+| `TAIL_SIZE` | `int` | `10` | 融尾长度，径元的融合尾部长度 |
+| `BODY_STRIDE` | `int` | `100` | 切片步长，径元提取时的步长 |
+| `LOG_LEVEL` | `str` | `"INFO"` | 日志级别 |
 
 ## 异常接口
 
@@ -1006,21 +1017,21 @@ import traceloom as tl
 
 # 重织：从真实HoloWAN文件提取并重组路径
 reweave_result = tl.reweave(
-    input="data/raw/20251203_230356_b6x-playback.txt",
+    input_file="data/raw/20251203_230356_b6x-playback.txt",
     output="reweave_path.txt"
 )
 print("Reweave result:", reweave_result)
 
 # 绣织：按织样构造质径
-embroider_result = tl.embroider(
-    input="s0x2 -> s2x6",
-    output="embroider_path.txt"
+stitch_result = tl.stitch(
+    input_pattern="s0x2 -> s2x6",
+    output="stitch_path.txt"
 )
-print("Embroider result:", embroider_result)
+print("Stitch result:", stitch_result)
 
 # 广织：生成幻径
 dream_result = tl.dream(
-    input="s0x2 -> s2x6",
+    input_pattern="s0x2 -> s2x6",
     output="dream_path.txt"
 )
 print("Dream result:", dream_result)

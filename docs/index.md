@@ -58,13 +58,13 @@ TraceLoom 从真实 HoloWAN 测量中提炼网络行为规律（【织律】）�
    import traceloom as tl
    
    # 重织：从文件
-   tl.reweave("real.txt", output_file="reweave.txt")
+   tl.reweave("real.txt", output="reweave.txt")
    
    # 绣织：从织样
-   tl.embroider("s0x2 -> s2x6", output_file="weak.txt")
+   tl.stitch("s0x2 -> s2x6", output="weak.txt")
    
    # 广织：生成幻径
-   tl.dream("s0x2 -> s2x6", output_file="dreamed.txt")
+   tl.dream("s0x2 -> s2x6", output="dreamed.txt")
    ```
 
 ---

@@ -11,8 +11,8 @@
 织虚使用loguru进行日志记录，默认日志级别为INFO。可以通过以下方式调整日志级别：
 
 ```python
-from traceloom.core import settings
-settings.set_config("LOG_LEVEL", "DEBUG")
+from traceloom.core.config import settings
+settings.LOG_LEVEL = "DEBUG"
 ```
 
 或者通过环境变量：
