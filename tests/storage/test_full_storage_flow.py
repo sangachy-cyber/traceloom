@@ -8,7 +8,6 @@ import tempfile
 import shutil
 from pathlib import Path
 from traceloom.domain.pathlet import Pathlet, BodyObservations, TailObservations, Observation
-from traceloom.domain.raw_trace import RawTraceSegment
 from traceloom.storage.pathlet_storage import PathletStorage
 
 
@@ -20,9 +19,9 @@ def test_full_storage_flow():
         # 创建存储实例
         storage = PathletStorage(Path(temp_dir))
         
-        # 创建观测数据
-        observations = []
-        for i in range(110):  # 100个上下文点 + 10个延续点
+        # 创建主体观测数据
+        body_observations1 = []
+        for i in range(100):  # 100个主体点
             obs = Observation(
                 delay_up=10.0 + i * 0.1,
                 loss_up=0.01 + i * 0.0001,
@@ -31,18 +30,11 @@ def test_full_storage_flow():
                 loss_down=0.005 + i * 0.00005,
                 bw_down=100.0 - i * 0.1
             )
-            observations.append(obs)
+            body_observations1.append(obs)
         
-        # 创建 RawTraceSegment
-        segment1 = RawTraceSegment(
-            trace_name="test_trace",
-            start_index=0,
-            observations=observations
-        )
-        
-        # 创建重叠的 RawTraceSegment
-        observations2 = []
-        for i in range(110):
+        # 创建融尾观测数据
+        tail_observations1 = []
+        for i in range(10):  # 10个融尾点
             obs = Observation(
                 delay_up=20.0 + i * 0.1,
                 loss_up=0.02 + i * 0.0001,
@@ -51,34 +43,54 @@ def test_full_storage_flow():
                 loss_down=0.01 + i * 0.00005,
                 bw_down=80.0 - i * 0.1
             )
-            observations2.append(obs)
-        
-        segment2 = RawTraceSegment(
-            trace_name="test_trace",
-            start_index=10,
-            observations=observations2
-        )
+            tail_observations1.append(obs)
         
         # 创建 Pathlet 对象
         pathlet1 = Pathlet(
             pathlet_id="pathlet_001",
-            body=BodyObservations(),
-            tail=TailObservations()
+            trace_name="test_trace",
+            start_index=0,
+            body=BodyObservations(observations=body_observations1),
+            tail=TailObservations(observations=tail_observations1),
+            is_valid=True
         )
+        
+        # 创建第二个 Pathlet 对象
+        body_observations2 = []
+        for i in range(100):  # 100个主体点
+            obs = Observation(
+                delay_up=15.0 + i * 0.1,
+                loss_up=0.015 + i * 0.0001,
+                bw_up=45.0 - i * 0.05,
+                delay_down=12.0 + i * 0.08,
+                loss_down=0.0075 + i * 0.00005,
+                bw_down=90.0 - i * 0.1
+            )
+            body_observations2.append(obs)
+        
+        tail_observations2 = []
+        for i in range(10):  # 10个融尾点
+            obs = Observation(
+                delay_up=25.0 + i * 0.1,
+                loss_up=0.025 + i * 0.0001,
+                bw_up=35.0 - i * 0.05,
+                delay_down=20.0 + i * 0.08,
+                loss_down=0.0125 + i * 0.00005,
+                bw_down=70.0 - i * 0.1
+            )
+            tail_observations2.append(obs)
         
         pathlet2 = Pathlet(
             pathlet_id="pathlet_002",
-            body=BodyObservations(),
-            tail=TailObservations()
+            trace_name="test_trace",
+            start_index=100,
+            body=BodyObservations(observations=body_observations2),
+            tail=TailObservations(observations=tail_observations2),
+            is_valid=True
         )
         
         # 保存数据
-        raw_trace_segment_map = {
-            "pathlet_001": segment1,
-            "pathlet_002": segment2
-        }
-        
-        storage.save_pathlets([pathlet1, pathlet2], raw_trace_segment_map)
+        storage.save_pathlets([pathlet1, pathlet2])
         
         # 加载数据
         loaded_pathlets = storage.load_pathlets()
@@ -106,7 +118,7 @@ def test_full_storage_flow():
             assert not points_df.empty
             assert "trace_name" in points_df.columns
             assert "trace_index" in points_df.columns
-            assert "containing_pathlet_ids" in points_df.columns
+            assert "pathlet_ids" in points_df.columns
             assert "delay_up" in points_df.columns
         
         # 测试获取原始数据
@@ -128,8 +140,8 @@ def test_full_storage_flow():
         body, tail = storage.reconstruct_profile(points_df)
         assert isinstance(body, BodyObservations)
         assert isinstance(tail, TailObservations)
-        assert len(body.observations) > 0
-        assert len(tail.observations) >= 0
+        assert len(body.observations) == 100
+        assert len(tail.observations) == 10
         
         print("完整存储和加载流程测试通过！")
         

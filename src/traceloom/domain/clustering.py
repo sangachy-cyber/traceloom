@@ -174,7 +174,7 @@ class TSNEVisualizer:
             raise ValueError("特征数量和标签数量不匹配")
 
         # 执行 t-SNE 降维
-        logger.info(f"执行 t-SNE 降维，特征维度: {features.shape}")
+        logger.debug(f"执行 t-SNE 降维，特征维度: {features.shape}")
         tsne = TSNE(
             n_components=self.n_components,
             perplexity=self.perplexity,

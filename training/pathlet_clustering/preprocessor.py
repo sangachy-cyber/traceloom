@@ -51,7 +51,7 @@ class Preprocessor:
             holowan_trace = HoloWANTrace.load(txt_file)
             pathlets.extend(list(holowan_trace.extended_sliding_windows()))
 
-        pathlet_storage.save_pathlets(pathlets)
+        pathlet_storage.save_pathlets(pathlets, update_points=True)
         return pathlets
 
     def save_pathlets(self, pathlets: List) -> None:
@@ -94,7 +94,7 @@ class Preprocessor:
                 logger.warning(f"无法从径元 ID {pathlet.pathlet_id} 中提取轨迹信息")
 
         # 使用 PathletStorage 保存径元
-        storage.save_pathlets(pathlets)
+        storage.save_pathlets(pathlets, update_points=True)
         logger.info("径元保存完成")
 
     def run(self) -> List:

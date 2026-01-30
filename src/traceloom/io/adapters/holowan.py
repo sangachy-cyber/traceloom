@@ -26,6 +26,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator, List, Optional
 
+import numpy as np
+
 from traceloom.core.exceptions import DataError, FileOperationError, ValidationError
 from traceloom.core.logger import get_logger
 from traceloom.domain.pathlet import Observation
@@ -445,11 +447,25 @@ class HoloWANTrace:
         points = []
         for i, line in enumerate(data_lines):
             try:
-                nums = list(map(float, line.split(",")))
+                # 分割并清理数据
+                parts = line.split(",")
+                # 过滤掉空字符串
+                parts = [p.strip() for p in parts if p.strip()]
+                # 确保有6个数值
+                if len(parts) != 6:
+                    raise DataError(f"Line {i + 1} must have exactly 6 numbers, got {len(parts)}")
+                # 转换为浮点数
+                nums = list(map(float, parts))
+                # 检查 NaN 值
+                if any(np.isnan(x) for x in nums):
+                    raise DataError(f"Line {i + 1} contains NaN values: {line}")
+                # 检查无穷值
+                if any(np.isinf(x) for x in nums):
+                    raise DataError(f"Line {i + 1} contains infinite values: {line}")
+            except ValueError as e:
+                raise DataError(f"Failed to parse data line {i + 1}: '{line}'") from e
             except Exception as e:
                 raise DataError(f"Failed to parse data line {i + 1}: '{line}'") from e
-            if len(nums) != 6:
-                raise DataError(f"Line {i + 1} must have 6 numbers, got {len(nums)}")
 
             points.append(HoloWANPoint.from_raw_row(nums))
 

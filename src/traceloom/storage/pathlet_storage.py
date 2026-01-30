@@ -6,7 +6,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import joblib
 import pandas as pd
@@ -16,7 +16,6 @@ import pyarrow.parquet as pq
 from traceloom.core.config import settings
 from traceloom.core.logger import logger
 from traceloom.domain.pathlet import BodyObservations, Observation, Pathlet, TailObservations
-from traceloom.storage.adapters import PathletStorageAdapter
 
 
 @dataclass
@@ -142,11 +141,236 @@ class PathletStorage:
         self._cache_expiry_seconds = 300  # 缓存过期时间，5分钟
         self._cache_size_limit = 100000  # 缓存大小限制（行数）
 
-        # 存储适配器
-        self.storage_adapter = PathletStorageAdapter()
-
         # 标记初始化完成
         self._initialized = True
+
+    @staticmethod
+    def pathlets_to_storage(pathlets: List[Pathlet]) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """将 Pathlet 对象转换为存储结构
+
+        参数:
+            pathlets: Pathlet 列表
+
+        返回:
+            Tuple[pd.DataFrame, pd.DataFrame]: 元数据和点数据的 DataFrame
+        """
+        metadata = []
+        unique_points = {}
+
+        for pathlet in pathlets:
+            # 确保 trace_name 是字符串类型
+            trace_name = str(pathlet.trace_name)
+            # 如果 trace_name 为空，尝试从 pathlet_id 中提取
+            if not trace_name:
+                # 尝试从 pathlet_id 中提取 trace_name（格式：{trace_name}_{index}）
+                if "_" in pathlet.pathlet_id:
+                    # 例如：20260118_231050_VAj-playback_0 -> 20260118_231050_VAj-playback
+                    parts = pathlet.pathlet_id.split("_")
+                    # 找到最后一个数字部分的索引
+                    for i in range(len(parts) - 1, -1, -1):
+                        if parts[i].isdigit():
+                            # 提取前面的部分作为 trace_name
+                            trace_name = "_".join(parts[:i])
+                            break
+            start_index = pathlet.start_index
+            # 从 state_label 中提取 state_id
+            if pathlet.state_label:
+                state_id = pathlet.state_label.state_id
+            else:
+                state_id = -1
+
+            # 提取元数据
+            metadata.append(
+                {
+                    "pathlet_id": pathlet.pathlet_id,
+                    "is_valid": pathlet.is_valid,
+                    "state_id": state_id,
+                    "trace_name": trace_name,
+                    "start_index": start_index,
+                }
+            )
+
+            # 提取点数据（去重处理）
+            # 从 body 中提取观测数据
+            for i, obs in enumerate(pathlet.body.observations):
+                trace_index = start_index + i
+                key = (trace_name, trace_index)
+
+                if key not in unique_points:
+                    # 新观测点
+                    unique_points[key] = {
+                        "trace_name": trace_name,
+                        "trace_index": trace_index,
+                        "pathlet_ids": [pathlet.pathlet_id],
+                        "delay_up": obs.delay_up,
+                        "loss_up": obs.loss_up,
+                        "bw_up": obs.bw_up,
+                        "delay_down": obs.delay_down,
+                        "loss_down": obs.loss_down,
+                        "bw_down": obs.bw_down,
+                    }
+                else:
+                    # 已有观测点，添加径元ID
+                    if pathlet.pathlet_id not in unique_points[key]["pathlet_ids"]:
+                        unique_points[key]["pathlet_ids"].append(pathlet.pathlet_id)
+
+            # 从 tail 中提取观测数据
+            for i, obs in enumerate(pathlet.tail.observations):
+                trace_index = start_index + len(pathlet.body.observations) + i
+                key = (trace_name, trace_index)
+
+                if key not in unique_points:
+                    # 新观测点
+                    unique_points[key] = {
+                        "trace_name": trace_name,
+                        "trace_index": trace_index,
+                        "pathlet_ids": [pathlet.pathlet_id],
+                        "delay_up": obs.delay_up,
+                        "loss_up": obs.loss_up,
+                        "bw_up": obs.bw_up,
+                        "delay_down": obs.delay_down,
+                        "loss_down": obs.loss_down,
+                        "bw_down": obs.bw_down,
+                    }
+                else:
+                    # 已有观测点，添加径元ID
+                    if pathlet.pathlet_id not in unique_points[key]["pathlet_ids"]:
+                        unique_points[key]["pathlet_ids"].append(pathlet.pathlet_id)
+
+        # 创建点数据 DataFrame
+        points_df = pd.DataFrame(list(unique_points.values()))
+
+        return pd.DataFrame(metadata), points_df
+
+    @staticmethod
+    def storage_to_pathlets(metadata_df: pd.DataFrame, points_df: pd.DataFrame) -> List[Pathlet]:
+        """将存储结构转换为 Pathlet 对象
+
+        参数:
+            metadata_df: 元数据 DataFrame
+            points_df: 点数据 DataFrame
+
+        返回:
+            List[Pathlet]: Pathlet 列表
+        """
+        pathlets = []
+
+        if points_df.empty:
+            logger.warning("点数据为空")
+            return pathlets
+
+        # 按径元分组点数据
+        pathlet_points = {}
+        # 兼容旧的字段名
+        id_column = "pathlet_ids" if "pathlet_ids" in points_df.columns else "containing_pathlet_ids"
+
+        for idx, row in points_df.iterrows():
+            # 确保 pathlet_ids 是列表
+            pathlet_ids = row[id_column]
+
+            # 处理 numpy 数组类型
+            import numpy as np
+
+            if isinstance(pathlet_ids, np.ndarray):
+                pathlet_ids = pathlet_ids.tolist()
+
+            elif not isinstance(pathlet_ids, list):
+                pathlet_ids = [pathlet_ids]
+
+            for pathlet_id in pathlet_ids:
+                # 确保 pathlet_id 是字符串类型
+                pathlet_id_str = str(pathlet_id)
+
+                if pathlet_id_str not in pathlet_points:
+                    pathlet_points[pathlet_id_str] = []
+                pathlet_points[pathlet_id_str].append(row)
+
+        # 构建 Pathlet 对象
+        for _, metadata_row in metadata_df.iterrows():
+            pathlet_id = metadata_row["pathlet_id"]
+            # 确保 pathlet_id 是字符串类型
+            pathlet_id_str = str(pathlet_id)
+            logger.debug(f"处理径元: {pathlet_id_str}")
+
+            start_index = metadata_row["start_index"]
+            trace_name = metadata_row.get("trace_name", "")
+            # 如果 trace_name 为空，尝试从 pathlet_id 中提取
+            if not trace_name:
+                # 尝试从 pathlet_id 中提取 trace_name（格式：{trace_name}_{index}）
+                if "_" in pathlet_id:
+                    # 例如：20260118_231050_VAj-playback_0 -> 20260118_231050_VAj-playback
+                    parts = pathlet_id.split("_")
+                    # 找到最后一个数字部分的索引
+                    for i in range(len(parts) - 1, -1, -1):
+                        if parts[i].isdigit():
+                            # 提取前面的部分作为 trace_name
+                            trace_name = "_".join(parts[:i])
+                            break
+
+            # 提取该径元的点数据
+            pathlet_points_list = pathlet_points.get(pathlet_id_str, [])
+
+            # 按 trace_index 排序
+            pathlet_points_list.sort(key=lambda x: x["trace_index"])
+
+            # 构建 BodyObservations 和 TailObservations
+            body_observations = []
+            tail_observations = []
+
+            # 计算预期的 trace_index 范围
+            expected_trace_indices = set(range(start_index, start_index + 110))
+            actual_trace_indices = set()
+
+            for point in pathlet_points_list:
+                trace_index = point["trace_index"]
+                actual_trace_indices.add(trace_index)
+
+                # 计算相对索引
+                relative_index = trace_index - start_index
+
+                # 创建观测数据
+                obs = Observation(
+                    delay_up=point["delay_up"],
+                    loss_up=point["loss_up"],
+                    bw_up=point["bw_up"],
+                    delay_down=point["delay_down"],
+                    loss_down=point["loss_down"],
+                    bw_down=point["bw_down"],
+                )
+
+                # 按相对索引分配到 body 或 tail
+                if relative_index < 100:
+                    body_observations.append(obs)
+                elif relative_index < 110:
+                    tail_observations.append(obs)
+
+            # 验证数据完整性
+            missing_indices = expected_trace_indices - actual_trace_indices
+            if missing_indices:
+                logger.warning(
+                    f"径元 {pathlet_id} 缺少 {len(missing_indices)} 个点数据: {sorted(missing_indices)[:5]}..."
+                )
+
+            # 从 metadata_row 中提取 state_id
+            state_id = metadata_row.get("state_id", -1)
+            from traceloom.domain.state import StateLabel
+
+            state_label = StateLabel(state_id=state_id)
+
+            # 创建 Pathlet 对象
+            pathlet = Pathlet(
+                pathlet_id=pathlet_id,
+                trace_name=trace_name,
+                start_index=start_index,
+                body=BodyObservations(observations=body_observations),
+                tail=TailObservations(observations=tail_observations),
+                state_label=state_label,  # 从 metadata_row 中恢复
+                is_valid=metadata_row.get("is_valid", True),
+            )
+
+            pathlets.append(pathlet)
+
+        return pathlets
 
     def _is_cache_valid(self, cache_key: str) -> bool:
         """检查缓存是否有效
@@ -192,13 +416,18 @@ class PathletStorage:
         self._points_cache = None
         self._cache_timestamp.clear()
 
-    def save_pathlets(self, pathlets: List[Pathlet]) -> None:
+    def save_pathlets(self, pathlets: List[Pathlet], update_points: bool = False) -> None:
         """保存Pathlet数据。
 
         将Pathlet数据分离为元信息和点数据，分别写入Parquet文件。
 
         参数:
             pathlets: Pathlet列表
+            update_points: 是否更新点数据，默认为False（点数据为静态数据）
+
+        Raises:
+            ValueError:
+                如果pathlets列表为空
 
         示例:
             from traceloom.storage.pathlet_storage import PathletStorage
@@ -224,39 +453,44 @@ class PathletStorage:
                 tail=TailObservations()
             )
 
-            # 保存Pathlet数据
-            storage.save_pathlets([pathlet1, pathlet2])
+            # 保存Pathlet数据，不更新点数据
+            storage.save_pathlets([pathlet1, pathlet2], update_points=False)
         """
         if not pathlets:
-            logger.warning("没有Pathlet数据可保存")
-            return
+            raise ValueError("Pathlet数据列表为空，无法保存")
 
         # 假设所有传入的Pathlet对象都是有效的
         valid_pathlets = pathlets
 
-        # 使用适配器转换数据
-        new_metadata_df, new_points_df = self.storage_adapter.pathlets_to_storage(valid_pathlets)
+        # 使用内部方法转换数据
+        new_metadata_df, new_points_df = PathletStorage.pathlets_to_storage(valid_pathlets)
 
         # 生成主数据DataFrame（对应pathlets.parquet）
         main_data_df = new_metadata_df[["pathlet_id", "state_id", "trace_name", "start_index"]].copy()
-        main_data_df.rename(columns={"trace_name": "source_file"}, inplace=True)
 
         # 如果文件已存在，读取现有数据并合并
         if self.main_data_file.exists():
             existing_main_df = self._read_main_data()
+            # 统一字段名，确保与新数据一致
+            # if "source_file" in existing_main_df.columns and "trace_name" not in existing_main_df.columns:
+            #     existing_main_df.rename(columns={"source_file": "trace_name"}, inplace=True)
             # 合并数据，去重（基于pathlet_id）
             combined_main_df = pd.concat([existing_main_df, main_data_df], ignore_index=True)
             combined_main_df = combined_main_df.drop_duplicates(subset=["pathlet_id"], keep="last")
+            # # 确保只保留 trace_name 列
+            # if "source_file" in combined_main_df.columns:
+            #     combined_main_df.drop(columns=["source_file"], inplace=True)
         else:
             combined_main_df = main_data_df
 
         # 写入Parquet文件
         self._write_main_data(combined_main_df)
 
-        # 只有当点数据尚未加载时才写入（静态数据）
-        if not PathletStorage._points_loaded:
+        # 只有在必要时才更新点数据
+        if update_points:
             self._write_points(new_points_df)
             PathletStorage._points_loaded = True
+            logger.info("点数据已更新")
 
         # 清除缓存，确保下次读取时能获取最新数据
         self.clear_cache()
@@ -319,11 +553,9 @@ class PathletStorage:
 
         # 转换列名以匹配适配器期望的格式
         metadata_df = main_data_df.copy()
-        metadata_df.rename(columns={"source_file": "trace_name"}, inplace=True)
-        metadata_df["is_valid"] = True  # 默认所有Pathlet都是有效的
 
-        # 使用适配器转换数据
-        pathlets = self.storage_adapter.storage_to_pathlets(metadata_df, points_df)
+        # 使用内部方法转换数据
+        pathlets = PathletStorage.storage_to_pathlets(metadata_df, points_df)
 
         # 补充trace_name、start_index和is_valid字段
         for i, (_, metadata_row) in enumerate(metadata_df.iterrows()):
@@ -331,6 +563,50 @@ class PathletStorage:
                 pathlets[i].trace_name = metadata_row.get("trace_name", "")
                 pathlets[i].start_index = metadata_row.get("start_index", 0)
                 pathlets[i].is_valid = metadata_row.get("is_valid", True)
+
+        # 打印统计信息
+        logger.info(f"成功加载 {len(pathlets)} 个径元")
+        if state_id is not None:
+            logger.info(f"筛选条件: state_id={state_id}")
+
+        # 统计状态分布
+        if pathlets:
+            state_counts = {}
+            for pathlet in pathlets:
+                state_id = pathlet.state_label.state_id if pathlet.state_label else -1
+                state_counts[state_id] = state_counts.get(state_id, 0) + 1
+            logger.info(f"状态分布: {state_counts}")
+
+            # 统计时延、丢包的最大、最小、均值
+            import numpy as np
+
+            delays_up = []
+            delays_down = []
+            losses_up = []
+            losses_down = []
+
+            for pathlet in pathlets:
+                # 从观测数据中提取时延和丢包数据
+                for obs in pathlet.observations:
+                    delays_up.append(obs.delay_up)
+                    delays_down.append(obs.delay_down)
+                    losses_up.append(obs.loss_up)
+                    losses_down.append(obs.loss_down)
+
+            # 计算统计值
+            if delays_up:
+                logger.info(
+                    f"时延上行 - 最大值: {np.max(delays_up):.2f}ms, 最小值: {np.min(delays_up):.2f}ms, 均值: {np.mean(delays_up):.2f}ms"
+                )
+                logger.info(
+                    f"时延下行 - 最大值: {np.max(delays_down):.2f}ms, 最小值: {np.min(delays_down):.2f}ms, 均值: {np.mean(delays_down):.2f}ms"
+                )
+                logger.info(
+                    f"丢包上行 - 最大值: {np.max(losses_up):.4f}, 最小值: {np.min(losses_up):.4f}, 均值: {np.mean(losses_up):.4f}"
+                )
+                logger.info(
+                    f"丢包下行 - 最大值: {np.max(losses_down):.4f}, 最小值: {np.min(losses_down):.4f}, 均值: {np.mean(losses_down):.4f}"
+                )
 
         return pathlets
 
@@ -348,38 +624,100 @@ class PathletStorage:
 
         参数:
             points: 点数据DataFrame
+
+        Raises:
+            ValueError:
+                如果points DataFrame为空
         """
         if points.empty:
-            return
+            raise ValueError("点数据DataFrame为空，无法写入")
+
+        # 确保trace_name字段是字符串类型
+        if "trace_name" in points.columns:
+            # 检查并转换trace_name字段的类型
+            logger.debug(f"写入前 points DataFrame 中 trace_name 字段的类型: {str(points['trace_name'].dtype)}")
+            # 强制转换为字符串类型
+            points["trace_name"] = points["trace_name"].astype(str)
+            logger.debug(f"写入前 points DataFrame 中 trace_name 字段转换后的类型: {str(points['trace_name'].dtype)}")
+        else:
+            # 如果trace_name字段不存在，添加一个空字符串字段
+            points["trace_name"] = ""
 
         # 确保trace_index列存在并排序
         if "trace_index" in points.columns:
             points = points.sort_values(["trace_name", "trace_index"])
 
-        # 转换为Arrow表
-        table = pa.Table.from_pandas(points)
+        # 确保目录存在
+        self.points_file.mkdir(exist_ok=True, parents=True)
 
-        # 按trace_name分组写入固定文件名
-        for trace_name, group in points.groupby("trace_name"):
-            # 创建trace_name对应的子目录
-            trace_dir = self.points_file / f"trace_name={trace_name}"
-            trace_dir.mkdir(exist_ok=True, parents=True)
-            
-            # 清空目录中的旧文件，只保留固定文件名的文件
-            for item in trace_dir.iterdir():
-                if item.name != "points.parquet":
+        # 清空目录中的旧文件，避免文件积累
+        if self.points_file.exists():
+            for item in self.points_file.iterdir():
+                if item.is_dir():
+                    import shutil
+
+                    shutil.rmtree(item)
+                else:
                     item.unlink()
-            
-            # 使用固定的文件名
-            file_path = trace_dir / "points.parquet"
-            
-            # 转换分组数据为Arrow表
-            group_table = pa.Table.from_pandas(group)
-            
-            # 写入单个文件
-            pq.write_table(group_table, str(file_path), compression="ZSTD")
 
-        logger.info(f"点数据已写入到 {self.points_file}，使用固定文件名")
+        # 确保trace_name字段是字符串类型
+        if "trace_name" in points.columns:
+            # 对每个元素单独转换，确保即使是复杂类型也能转换为字符串
+            def to_str(value):
+                if value is None:
+                    return ""
+                try:
+                    return str(value)
+                except:
+                    return ""
+
+            points["trace_name"] = points["trace_name"].apply(to_str)
+            logger.debug(f"写入前 points DataFrame 中 trace_name 字段的类型: {str(points['trace_name'].dtype)}")
+        else:
+            # 如果trace_name字段不存在，添加一个空字符串字段
+            points["trace_name"] = ""
+
+        # 明确定义Arrow schema，确保所有字段类型一致
+        schema = pa.schema(
+            [
+                ("trace_name", pa.string()),
+                ("trace_index", pa.int64()),
+                ("pathlet_ids", pa.list_(pa.string())),
+                ("delay_up", pa.float64()),
+                ("loss_up", pa.float64()),
+                ("bw_up", pa.float64()),
+                ("delay_down", pa.float64()),
+                ("loss_down", pa.float64()),
+                ("bw_down", pa.float64()),
+            ]
+        )
+
+        # 按trace_name分组，为每个trace_name创建固定文件名的Parquet文件
+        # 首先获取所有唯一的trace_name
+        unique_trace_names = points["trace_name"].unique()
+
+        for trace_name in unique_trace_names:
+            # 确保trace_name是字符串
+            trace_name_str = str(trace_name)
+
+            # 筛选当前trace_name的数据
+            trace_data = points[points["trace_name"] == trace_name_str]
+
+            # 转换为Arrow表
+            trace_table = pa.Table.from_pandas(trace_data, schema=schema)
+
+            # 创建分区目录
+            partition_dir = self.points_file / f"trace_name={trace_name_str}"
+            partition_dir.mkdir(exist_ok=True, parents=True)
+
+            # 使用固定文件名
+            file_path = partition_dir / "data.parquet"
+
+            # 写入文件
+            pq.write_table(trace_table, str(file_path), compression="ZSTD")
+            logger.debug(f"已写入分区文件: {file_path}")
+
+        logger.info(f"点数据已写入到 {self.points_file}，使用按trace_name分区存储，每个分区使用固定文件名")
 
     def _read_main_data(self) -> pd.DataFrame:
         """从Parquet文件读取主数据（pathlets.parquet）。
@@ -410,6 +748,10 @@ class PathletStorage:
         参数:
             main_data: 主数据DataFrame
         """
+        # 确保trace_name字段是字符串类型
+        if "trace_name" in main_data.columns:
+            main_data["trace_name"] = main_data["trace_name"].astype(str)
+
         # 转换为Arrow表
         table = pa.Table.from_pandas(main_data)
 
@@ -425,25 +767,165 @@ class PathletStorage:
         # 使用缓存
         if self._points_cache is not None:
             # 静态数据，一旦加载就不再刷新
+
             return self._points_cache
 
         # 检查点数据是否存在
         if not self.points_file.exists():
+            logger.warning(f"点数据目录不存在: {self.points_file}")
             return pd.DataFrame()
 
-        # 读取Parquet数据集（支持分区）
-        dataset = pq.ParquetDataset(self.points_file)
-        table = dataset.read()
-        df = table.to_pandas()
+        # 检查是否存在分区存储的点数据
+        partition_dirs = [d for d in self.points_file.iterdir() if d.is_dir() and d.name.startswith("trace_name=")]
 
-        # 缓存结果（静态数据，只加载一次）
-        if len(df) <= self._cache_size_limit:
-            self._points_cache = df
+        if partition_dirs:
+            try:
+                # 逐个读取分区文件，然后合并
+                dfs = []
+                for partition_dir in partition_dirs:
+                    # 找到分区目录中的数据文件
+                    data_files = list(partition_dir.glob("*.parquet"))
+                    if data_files:
+                        for data_file in data_files:
+                            try:
+                                # 明确定义Arrow schema，确保所有字段类型一致
+                                schema = pa.schema(
+                                    [
+                                        ("trace_name", pa.string()),
+                                        ("trace_index", pa.int64()),
+                                        ("pathlet_ids", pa.list_(pa.string())),
+                                        ("delay_up", pa.float64()),
+                                        ("loss_up", pa.float64()),
+                                        ("bw_up", pa.float64()),
+                                        ("delay_down", pa.float64()),
+                                        ("loss_down", pa.float64()),
+                                        ("bw_down", pa.float64()),
+                                    ]
+                                )
 
-        # 标记点数据已加载
-        PathletStorage._points_loaded = True
+                                # 读取单个文件，使用指定的schema
+                                table = pq.read_table(data_file, schema=schema)
+                                # 转换为DataFrame
+                                df_part = table.to_pandas()
 
-        return df
+                                # 确保trace_name字段是字符串类型
+                                if "trace_name" in df_part.columns:
+                                    df_part["trace_name"] = df_part["trace_name"].astype(str)
+
+                                # 确保containing_pathlet_ids字段是列表类型
+                                if "containing_pathlet_ids" in df_part.columns:
+                                    logger.info(
+                                        f"读取的 containing_pathlet_ids 类型: {type(df_part['containing_pathlet_ids'].iloc[0])}"
+                                    )
+
+                                    # 处理可能的类型问题
+                                    def ensure_list(obj):
+                                        import numpy as np
+
+                                        if isinstance(obj, list):
+                                            return obj
+                                        elif isinstance(obj, np.ndarray):
+                                            # 转换 numpy 数组为列表
+                                            return obj.tolist()
+                                        elif isinstance(obj, str):
+                                            return [obj]
+                                        else:
+                                            return []
+
+                                    df_part["containing_pathlet_ids"] = df_part["containing_pathlet_ids"].apply(
+                                        ensure_list
+                                    )
+
+                                # 添加到列表
+                                dfs.append(df_part)
+                            except Exception as e:
+                                logger.warning(f"读取文件 {data_file} 时出错: {e}")
+                                continue
+
+                # 合并所有分区数据
+                if dfs:
+                    df = pd.concat(dfs, ignore_index=True)
+                else:
+                    df = pd.DataFrame()
+
+                # 确保trace_name字段是字符串类型
+                if "trace_name" in df.columns:
+                    # 强制转换为字符串类型
+                    df["trace_name"] = df["trace_name"].astype(str)
+
+                # 确保containing_pathlet_ids字段是列表类型
+                if "pathlet_ids" in df.columns:
+                    # 处理可能的类型问题
+                    def ensure_list(obj):
+                        import numpy as np
+
+                        if isinstance(obj, list):
+                            return obj
+                        elif isinstance(obj, np.ndarray):
+                            # 转换 numpy 数组为列表
+                            return obj.tolist()
+                        elif isinstance(obj, str):
+                            return [obj]
+                        else:
+                            return []
+
+                    df["pathlet_ids"] = df["pathlet_ids"].apply(ensure_list)
+
+                # 缓存结果（静态数据，只加载一次）
+                if len(df) <= self._cache_size_limit:
+                    self._points_cache = df
+
+                # 标记点数据已加载
+                PathletStorage._points_loaded = True
+
+                return df
+            except Exception as e:
+                logger.warning(f"读取分区数据时出错: {e}")
+                import traceback
+
+                logger.warning(f"错误堆栈: {traceback.format_exc()}")
+                return pd.DataFrame()
+        else:
+            # 尝试读取单个文件（兼容旧格式）
+            file_path = self.points_file / "points.parquet"
+            if file_path.exists():
+                try:
+                    # 读取文件
+                    table = pq.read_table(file_path)
+                    # 转换为DataFrame
+                    df = table.to_pandas()
+
+                    # 确保trace_name字段是字符串类型
+                    if "trace_name" in df.columns:
+                        # 强制转换为字符串类型
+                        df["trace_name"] = df["trace_name"].astype(str)
+
+                    # 确保containing_pathlet_ids字段是列表类型
+                    if "containing_pathlet_ids" in df.columns:
+                        # 处理可能的类型问题
+                        def ensure_list(obj):
+                            if isinstance(obj, list):
+                                return obj
+                            elif isinstance(obj, str):
+                                return [obj]
+                            else:
+                                return []
+
+                        df["containing_pathlet_ids"] = df["containing_pathlet_ids"].apply(ensure_list)
+
+                    # 缓存结果（静态数据，只加载一次）
+                    if len(df) <= self._cache_size_limit:
+                        self._points_cache = df
+
+                    # 标记点数据已加载
+                    PathletStorage._points_loaded = True
+
+                    return df
+                except Exception as e:
+                    logger.warning(f"读取文件 {file_path} 时出错: {e}")
+                    return pd.DataFrame()
+            else:
+                return pd.DataFrame()
 
     def _merge_data(self, metadata_df: pd.DataFrame, points_df: pd.DataFrame) -> List[Pathlet]:
         """合并元信息和点数据，构建Pathlet列表。
@@ -559,7 +1041,7 @@ class PathletStorage:
             return None
 
         # 确定使用哪个字段来存储径元ID
-        id_column = "containing_pathlet_ids" if "containing_pathlet_ids" in points_df.columns else "pathlet_ids"
+        id_column = "pathlet_ids" if "pathlet_ids" in points_df.columns else "containing_pathlet_ids"
 
         # 检查数组字段是否包含指定的pathlet_id
         if id_column in points_df.columns:
@@ -794,25 +1276,26 @@ class PathletStorage:
 
         if self.main_data_file.exists():
             self.main_data_file.unlink()
-            logger.info(f"已删除主数据文件: {self.main_data_file}")
+            logger.debug(f"已删除主数据文件: {self.main_data_file}")
 
         if self.points_file.exists():
             import shutil
+
             shutil.rmtree(self.points_file)
-            logger.info(f"已删除点数据目录: {self.points_file}")
+            logger.debug(f"已删除点数据目录: {self.points_file}")
 
         if self.gmm_model_file.exists():
             self.gmm_model_file.unlink()
-            logger.info(f"已删除GMM模型文件: {self.gmm_model_file}")
+            logger.debug(f"已删除GMM模型文件: {self.gmm_model_file}")
 
         if self.state_mapping_file.exists():
             self.state_mapping_file.unlink()
-            logger.info(f"已删除状态映射文件: {self.state_mapping_file}")
+            logger.debug(f"已删除状态映射文件: {self.state_mapping_file}")
 
         # 重置静态数据加载标记
         PathletStorage._points_loaded = False
 
-        logger.info(f"已清空Pathlet数据目录: {self.pathlet_dir}")
+        logger.debug(f"已清空Pathlet数据目录: {self.pathlet_dir}")
 
     def save_gmm_model(self, model: Any, state_mapping: Dict[str, Any]) -> None:
         """保存GMM模型和状态映射
@@ -838,14 +1321,14 @@ class PathletStorage:
 
         # 保存模型
         joblib.dump(model, self.gmm_model_file)
-        logger.info(f"GMM模型已保存到: {self.gmm_model_file}")
+        logger.debug(f"GMM模型已保存到: {self.gmm_model_file}")
 
         # 保存状态映射
         import json
 
         with open(self.state_mapping_file, "w", encoding="utf-8") as f:
             json.dump(state_mapping, f, ensure_ascii=False, indent=2)
-        logger.info(f"状态映射已保存到: {self.state_mapping_file}")
+        logger.debug(f"状态映射已保存到: {self.state_mapping_file}")
 
     def load_gmm_model(self) -> Optional[Any]:
         """加载GMM模型
@@ -875,7 +1358,7 @@ class PathletStorage:
             return None
 
         model = joblib.load(self.gmm_model_file)
-        logger.info(f"GMM模型已从: {self.gmm_model_file} 加载")
+        logger.debug(f"GMM模型已从: {self.gmm_model_file} 加载")
         return model
 
     def load_state_mapping(self) -> Optional[Dict[str, Any]]:

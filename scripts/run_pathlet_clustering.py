@@ -23,7 +23,7 @@ import typer
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from traceloom.core.logger import logger
-from training.pathlet_clustering.pipeline import run
+from training.pathlet_clustering.pipeline import PathletClusteringPipeline
 
 # 创建Typer应用
 app = typer.Typer(name="run_pathlet_clustering", help="运行路径聚类训练流水线", add_completion=False)
@@ -59,12 +59,15 @@ def main(
         logger.info("=" * 60)
 
         # 运行聚类训练流水线
-        run(
-            n_components=n_components,
-            confidence_threshold=confidence_threshold,
-            assign_test_states=assign_test_states,
-            visualize=visualize,
-        )
+
+        PathletClusteringPipeline().run()
+
+        # run(
+        #     n_components=n_components,
+        #     confidence_threshold=confidence_threshold,
+        #     assign_test_states=assign_test_states,
+        #     visualize=visualize,
+        # )
 
         logger.info("=" * 60)
         logger.info("路径聚类训练流水线完成!")
@@ -75,7 +78,7 @@ def main(
         logger.info("  - 状态映射: data/models/state_mapping.json")
         logger.info("  - 带有状态信息的径元: data/pathlets/")
         if visualize:
-            logger.info("  - 可视化结果: data/after_label/clustering_gmm_tsne.png")
+            logger.info("  - 可视化结果: data/outputs/pathlet_clustering/")
         logger.info("=" * 60)
 
     except Exception as e:

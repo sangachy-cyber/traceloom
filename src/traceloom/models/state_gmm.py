@@ -71,15 +71,42 @@ class StateGMM:
 
         返回:
             np.ndarray: 16 维特征向量
+
+        Raises:
+            ValueError:
+                如果观测数据中包含无效值（NaN、无穷值或负值）
         """
         if not observations:
-            return np.zeros(16)
+            raise ValueError("观测数据为空，无法提取特征")
 
         # 提取上行和下行的延迟、丢包
         delay_up = np.array([obs.delay_up for obs in observations])
         loss_up = np.array([obs.loss_up for obs in observations])
         delay_down = np.array([obs.delay_down for obs in observations])
         loss_down = np.array([obs.loss_down for obs in observations])
+
+        # 验证数据有效性
+        def validate_data(delay, loss, direction):
+            # 检查 NaN 值
+            if np.any(np.isnan(delay)):
+                raise ValueError(f"{direction} 延迟数据中包含 NaN 值")
+            if np.any(np.isnan(loss)):
+                raise ValueError(f"{direction} 丢包率数据中包含 NaN 值")
+            # 检查无穷值
+            if np.any(np.isinf(delay)):
+                raise ValueError(f"{direction} 延迟数据中包含无穷值")
+            if np.any(np.isinf(loss)):
+                raise ValueError(f"{direction} 丢包率数据中包含无穷值")
+            # 检查延迟负值
+            if np.any(delay < 0):
+                raise ValueError(f"{direction} 延迟数据中包含负值")
+            # 检查丢包率范围
+            if np.any(loss < 0) or np.any(loss > 1):
+                raise ValueError(f"{direction} 丢包率数据超出 [0, 1] 范围")
+
+        # 验证上行和下行数据
+        validate_data(delay_up, loss_up, "上行")
+        validate_data(delay_down, loss_down, "下行")
 
         # 计算每个方向的 8 维特征
         def compute_direction_features(delay, loss):
@@ -116,6 +143,12 @@ class StateGMM:
         # 构建 16 维特征向量
         features = np.array(up_features + down_features)
 
+        # 验证特征向量的有效性
+        if np.any(np.isnan(features)):
+            raise ValueError("特征向量中包含 NaN 值")
+        if np.any(np.isinf(features)):
+            raise ValueError("特征向量中包含无穷值")
+
         return features
 
     def fit(self, pathlets: List[Pathlet]) -> None:
@@ -129,16 +162,29 @@ class StateGMM:
 
         # 提取特征
         features = []
-        for pathlet in pathlets:
+        empty_observations_count = 0
+        for i, pathlet in enumerate(pathlets):
             # 从主干观测数据中提取特征
             observations = pathlet.body.observations
+
+            # 检查观测数据是否为空
+            if len(observations) == 0:
+                empty_observations_count += 1
+
             feature = self.extract_features(observations)
             features.append(feature)
 
+        logger.debug(f"空观测数据径元数量: {empty_observations_count} / {len(pathlets)}")
+
         features = np.array(features)
+        logger.debug(f"提取的特征形状: {features.shape}")
+        logger.debug(f"特征均值: {np.mean(features, axis=0)[:3]}...")
+        logger.debug(f"特征标准差: {np.std(features, axis=0)[:3]}...")
 
         # 缩放特征
         features = self.scaler.fit_transform(features)
+        logger.debug(f"缩放后的特征均值: {np.mean(features, axis=0)[:3]}...")
+        logger.debug(f"缩放后的特征标准差: {np.std(features, axis=0)[:3]}...")
 
         # 拟合 GMM 模型
         if self.gmm:
@@ -148,7 +194,12 @@ class StateGMM:
             self._labels = self.gmm.predict(features)
             self._is_fit = True
             self._is_loaded = True
-            logger.info(f"GMM 模型拟合完成，n_components={self.n_components}")
+
+            # 统计聚类结果
+            unique_labels, counts = np.unique(self._labels, return_counts=True)
+            label_counts = dict(zip(unique_labels, counts))
+            logger.debug(f"GMM 聚类结果: {label_counts}")
+            logger.debug(f"GMM 模型拟合完成，n_components={self.n_components}")
         else:
             raise ValueError("GMM 模型未初始化")
 
