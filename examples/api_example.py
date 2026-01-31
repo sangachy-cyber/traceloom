@@ -160,46 +160,71 @@ def download_playback(engine: str, task_id: str, output_path: Path) -> Path:
         raise
 
 
-def main():
-    """主函数
+def _tl_execute_step(step_name: str, step_function, *args, **kwargs) -> Any:
+    """执行单个步骤，处理异常、日志和打印
 
-    演示完整的 API 调用流程
+    Args:
+        step_name: 步骤名称，用于日志和打印
+        step_function: 要执行的步骤函数
+        *args: 传递给步骤函数的位置参数
+        **kwargs: 传递给步骤函数的关键字参数
+
+    Returns:
+        Any: 步骤函数的返回值
     """
-    logger.info("TraceLoom API 示例脚本启动")
-
-    # 1. 健康检查
-    logger.info("=== 健康检查 ===")
+    logger.info(f"=== {step_name} ===")
     try:
-        health_result = health_check()
-        logger.info(f"健康检查结果: {health_result}")
-        print(f"健康检查结果: {health_result}")
+        result = step_function(*args, **kwargs)
+        logger.info(f"{step_name} 结果: {result}")
+        print(f"{step_name} 结果: {result}")
+        return result
     except Exception as e:
-        logger.error(f"健康检查失败: {e}")
-        print(f"健康检查失败: {e}")
-        return
+        logger.error(f"{step_name} 失败: {e}")
+        print(f"{step_name} 失败: {e}")
+        return None
 
-    # 2. 准备测试数据
-    target_ip = "192.168.1.100"
-    weaving_pattern = "s0x2 -> s2x6"
-    impairment_device = {"host": "160.100.15.195", "port": 8080, "engine_id": 1, "path_name": "LoomNet"}
 
-    # 3. 创建任务（使用 reweave 引擎）
-    logger.info("=== 创建织径任务 ===")
-    try:
-        task_response = create_task(
-            engine="reweave", target_ip=target_ip, weaving_pattern=weaving_pattern, impairment_device=impairment_device
-        )
-        logger.info(f"创建任务结果: {task_response}")
-        print(f"创建任务结果: {task_response}")
+def tl_execute_health_check() -> Dict[str, Any]:
+    """执行健康检查
 
-        task_id = task_response["task_id"]
-        engine = "reweave"  # 与创建任务时使用的引擎一致
-    except Exception as e:
-        logger.error(f"创建任务失败: {e}")
-        print(f"创建任务失败: {e}")
-        return
+    Returns:
+        Dict[str, Any]: 健康检查结果
+    """
+    return _tl_execute_step("健康检查", health_check)
 
-    # 4. 查询任务状态
+
+def tl_execute_create_task(engine: str, target_ip: str, weaving_pattern: str, impairment_device: Dict[str, Any]) -> Dict[str, Any]:
+    """执行创建任务
+
+    Args:
+        engine: 引擎名称
+        target_ip: 目标流量 IP
+        weaving_pattern: 织样语法
+        impairment_device: 损伤设备信息
+
+    Returns:
+        Dict[str, Any]: 创建任务结果
+    """
+    return _tl_execute_step(
+        "创建织径任务", 
+        create_task, 
+        engine=engine, 
+        target_ip=target_ip, 
+        weaving_pattern=weaving_pattern, 
+        impairment_device=impairment_device
+    )
+
+
+def tl_execute_task_status_check(engine: str, task_id: str) -> bool:
+    """执行任务状态检查
+
+    Args:
+        engine: 引擎名称
+        task_id: 任务唯一标识
+
+    Returns:
+        bool: 任务是否成功运行
+    """
     logger.info("=== 查询任务状态 ===")
     try:
         count = 0
@@ -214,37 +239,86 @@ def main():
             logger.info(f"任务状态: {status_response}")
             print(f"任务状态: {status_response}")
         if status != "running":
-            raise
+            logger.error(f"任务状态检查失败: 任务状态为 {status}")
+            print(f"任务状态检查失败: 任务状态为 {status}")
+            return False
+        return True
     except Exception as e:
         logger.error(f"查询任务状态失败: {e}")
         print(f"查询任务状态失败: {e}")
+        return False
+
+
+def tl_execute_stop_task(engine: str, task_id: str) -> Dict[str, Any]:
+    """执行停止任务
+
+    Args:
+        engine: 引擎名称
+        task_id: 任务唯一标识
+
+    Returns:
+        Dict[str, Any]: 停止任务结果
+    """
+    return _tl_execute_step("停止任务", stop_task, engine, task_id)
+
+
+def tl_execute_download_playback(engine: str, task_id: str, output_file: Path) -> Path:
+    """执行下载回放文件
+
+    Args:
+        engine: 引擎名称
+        task_id: 任务唯一标识
+        output_file: 输出文件路径
+
+    Returns:
+        Path: 下载文件路径
+    """
+    return _tl_execute_step("下载回放文件", download_playback, engine, task_id, output_file)
+
+
+def main():
+    """主函数
+
+    演示完整的 API 调用流程
+    """
+    logger.info("TraceLoom API 示例脚本启动")
+
+    # 1. 健康检查
+    health_result = tl_execute_health_check()
+    if not health_result:
+        return
+
+    # 2. 准备测试数据
+    target_ip = "192.168.1.100"
+    weaving_pattern = "s0x2 -> s2x6"
+    impairment_device = {"host": "160.100.15.195", "port": 8080, "engine_id": 1, "path_name": "LoomNet"}
+
+    # 3. 创建任务（使用 reweave 引擎）
+    task_response = tl_execute_create_task(
+        engine="reweave", 
+        target_ip=target_ip, 
+        weaving_pattern=weaving_pattern, 
+        impairment_device=impairment_device
+    )
+    if not task_response:
+        return
+
+    task_id = task_response["task_id"]
+    engine = "reweave"  # 与创建任务时使用的引擎一致
+
+    # 4. 查询任务状态
+    status_check_result = tl_execute_task_status_check(engine, task_id)
 
     # 5. 停止任务
-    logger.info("=== 停止任务 ===")
-    try:
-        stop_response = stop_task(engine, task_id)
-        logger.info(f"停止任务结果: {stop_response}")
-        print(f"停止任务结果: {stop_response}")
-    except Exception as e:
-        logger.error(f"停止任务失败: {e}")
-        print(f"停止任务失败: {e}")
+    tl_execute_stop_task(engine, task_id)
 
     # 6. 下载回放文件
-    logger.info("=== 下载回放文件 ===")
-    try:
-        output_file = settings.OUTPUT_DIR / f"{task_id}_playback.txt"
-        downloaded_file = download_playback(engine, task_id, output_file)
-        logger.info(f"回放文件下载成功: {downloaded_file}")
-        print(f"回放文件下载成功: {downloaded_file}")
-    except Exception as e:
-        logger.error(f"下载回放文件失败: {e}")
-        print(f"下载回放文件失败: {e}")
+    output_file = settings.OUTPUT_DIR / f"{task_id}_playback.txt"
+    tl_execute_download_playback(engine, task_id, output_file)
 
     logger.info("TraceLoom API 示例脚本完成")
     print("TraceLoom API 示例脚本完成")
 
 
 if __name__ == "__main__":
-    while True:
-        main()
     main()
