@@ -6,6 +6,7 @@
 
 import json
 import time
+import traceback
 
 from holowan.v2.engine import Engine
 from holowan.v2.engine.classifier import RawByteRule
@@ -59,6 +60,10 @@ class HoloWAN:
         self.engine_id = engine_id
         self.engine = None
         self.playback = None
+        self.engine = Engine(self.host, self.port, self.engine_id)
+        time.sleep(0.2)
+        self.playback = PlayBack(holowan_ip=self.host, holowan_port=self.port)
+        time.sleep(0.2)
 
     def connect(self):
         """初始化 Engine 和 PlayBack 实例，建立与 HoloWAN 设备的连接。
@@ -67,16 +72,17 @@ class HoloWAN:
             RuntimeError: 连接 HoloWAN 设备失败
         """
         try:
-            self.engine = Engine(self.host, self.port, self.engine_id)
             self.engine.update()
-            self.playback = PlayBack(holowan_ip=self.host, holowan_port=self.port)
+            time.sleep(0.2)
         except Exception as e:
+            traceback.print_exc()
             raise RuntimeError(f"Failed to connect to HoloWAN device {self.host}:{self.port}: {str(e)}") from e
 
     def find_path_id(self) -> int:
         """查找名为 'LoomNet' 的 Path ID（保留方法，兼容旧代码）"""
         for i in range(15):
             path = self.engine.get_path_by_id(i + 1)
+            time.sleep(0.1)
             if path and path.path_name == "LoomNet":
                 return i + 1
         raise RuntimeError("未找到 LoomNet 虚拟链路")
@@ -99,6 +105,7 @@ class HoloWAN:
 
         for i in range(1, 16):
             path = self.engine.get_path_by_id(i)
+            time.sleep(0.1)
             if path and path.path_name == path_name:
                 return i
         raise ValueError(f"Path '{path_name}' not found on HoloWAN device")
@@ -118,17 +125,18 @@ class HoloWAN:
         # 清理旧规则
         self._remove_rule_by_label(port=1, label=label_1)
         self._remove_rule_by_label(port=2, label=label_2)
-
         # 添加新规则
         rule1 = RawByteRule(type=1, action=path_id)
         rule1.add_raw_byte(layer=3, offset=59, mask="0xFF", value=hex_value)
         rule1.set_custom_name(label_1)
         self.engine.apply_rule_to_classifier(rule1, port=1)
+        time.sleep(0.1)
 
         rule2 = RawByteRule(type=1, action=path_id)
         rule2.add_raw_byte(layer=3, offset=63, mask="0xFF", value=hex_value)
         rule2.set_custom_name(label_2)
         self.engine.apply_rule_to_classifier(rule2, port=2)
+        time.sleep(0.1)
 
     def upload_and_apply_playback(self, file_path: str, playback_name: str, path_id: int):
         """上传并应用回放文件。
@@ -143,6 +151,7 @@ class HoloWAN:
         """
         # 检查是否已存在
         files = json.loads(self.playback.get_playback_file_list())
+        time.sleep(0.2)
         exists = any(f["name"] == playback_name for f in files["data"]["list"])
 
         if not exists:
@@ -153,6 +162,7 @@ class HoloWAN:
 
         # 应用回放
         result = self.playback.apply_playback_file(engine_id=self.engine_id, path_id=path_id, file_name=playback_name)
+        time.sleep(0.2)
         if json.loads(result)["code"] != 0:
             raise RuntimeError(f"应用失败: {result}")
 
@@ -176,6 +186,7 @@ class HoloWAN:
 
         # 删除回放文件
         self.playback.delete_playback_file(file_name=playback_name)
+        time.sleep(0.1)
 
     def _remove_rule_by_label(self, port: int, label: str):
         """内部方法：按 label 删除分类规则。
@@ -189,4 +200,5 @@ class HoloWAN:
         for i, rule in enumerate(nodes):
             if rule.get("label") == label:
                 classifier.remove_rule(port, i)
+                time.sleep(0.1)
                 break

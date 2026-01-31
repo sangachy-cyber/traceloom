@@ -53,6 +53,8 @@ class GlobalSampler:
                 if state_id not in state_pathlet_map:
                     state_pathlet_map[state_id] = []
                 state_pathlet_map[state_id].append(pathlet)
+            for state_id, pathlets in state_pathlet_map.items():
+                logger.info(f"状态: {state_id} 总共有{len(pathlets)}个")
         except Exception as e:
             logger.warning(f"构建状态-径元映射失败: {e}")
         return state_pathlet_map

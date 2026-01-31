@@ -67,7 +67,7 @@ class PathletClusteringPipeline:
         logger.info("加载数据集并按文件路径划分")
 
         # 加载所有径元数据
-        pathlets = self.storage.load_pathlets()
+        pathlets = self.storage.load_pathlets(is_valid=True)
 
         if len(pathlets) == 0:
             raise ValidationError("没有找到径元数据")

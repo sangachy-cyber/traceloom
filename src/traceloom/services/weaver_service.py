@@ -58,6 +58,8 @@ class WeaverService:
         logger.debug(f"回放文件存储目录: {self.playback_dir}")
         self.playback_dir.mkdir(parents=True, exist_ok=True)
         logger.info("初始化 WeaverService 完成")
+        # 初始化HoloWAN设备链接池
+        self.holowan_manager_map = {}
 
     def execute_task(self, task_id: str, request: WeaveRequest):
         """执行织径任务
@@ -112,20 +114,16 @@ class WeaverService:
             self.task_store.update_playback_file(task_id, str(playback_file_path))
             logger.info(f"回放文件保存成功: {playback_file_path}")
 
-            # 4. 创建临时文件用于上传到 HoloWAN
-            logger.info("步骤 4: 创建临时文件用于上传到 HoloWAN")
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-                f.write(holowan_content)
-                file_path = f.name
-            playback_name = f"weaver_{task_id}.txt"
-            logger.info(f"临时文件创建成功: {file_path}")
-            logger.debug(f"回放文件名: {playback_name}")
-
             # 5. 连接设备
             logger.info("步骤 5: 连接设备")
             dev = request.impairment_device
             logger.info(f"连接设备: {dev.host}:{dev.port}, engine_id={dev.engine_id}")
-            manager = HoloWAN(dev.host, dev.port, dev.engine_id)
+
+            manager = self.holowan_manager_map.get(dev.host, None)
+            if manager is None:
+                manager = HoloWAN(dev.host, dev.port, dev.engine_id)
+                self.holowan_manager_map[dev.host] = manager
+
             self.task_store.update_status(task_id, "connecting_device")
             logger.debug("更新任务状态为: connecting_device")
             manager.connect()
@@ -151,8 +149,8 @@ class WeaverService:
 
             # 8. 上传并应用
             logger.info("步骤 8: 上传并应用回放文件")
-            logger.debug(f"上传文件: {file_path}, 回放名称: {playback_name}, 路径 ID: {path_id}")
-            manager.upload_and_apply_playback(file_path, playback_name, path_id)
+            logger.debug(f"上传文件: {playback_file_path}, 回放名称: {playback_file_name}, 路径 ID: {path_id}")
+            manager.upload_and_apply_playback(playback_file_path.as_posix(), playback_file_name, path_id)
             logger.info("回放文件上传并应用成功")
             # 短暂延迟，确保仿真启动
             time.sleep(1)

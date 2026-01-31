@@ -181,7 +181,7 @@ def main():
     # 2. 准备测试数据
     target_ip = "192.168.1.100"
     weaving_pattern = "s0x2 -> s2x6"
-    impairment_device = {"host": "160.100.15.195", "port": 8080, "engine_id": 1, "path_name": "LoomPath"}
+    impairment_device = {"host": "160.100.15.195", "port": 8080, "engine_id": 1, "path_name": "LoomNet"}
 
     # 3. 创建任务（使用 reweave 引擎）
     logger.info("=== 创建织径任务 ===")
@@ -202,11 +202,19 @@ def main():
     # 4. 查询任务状态
     logger.info("=== 查询任务状态 ===")
     try:
-        # 等待几秒后查询状态
-        time.sleep(2)
-        status_response = get_task_status(engine, task_id)
-        logger.info(f"任务状态: {status_response}")
-        print(f"任务状态: {status_response}")
+        count = 0
+        status = "accepted"
+        while count < 15:
+            # 等待几秒后查询状态
+            time.sleep(1)
+            status_response = get_task_status(engine, task_id)
+            status = status_response["status"]
+            if status in ["running", "failed"]:
+                break
+            logger.info(f"任务状态: {status_response}")
+            print(f"任务状态: {status_response}")
+        if status != "running":
+            raise
     except Exception as e:
         logger.error(f"查询任务状态失败: {e}")
         print(f"查询任务状态失败: {e}")
@@ -232,31 +240,11 @@ def main():
         logger.error(f"下载回放文件失败: {e}")
         print(f"下载回放文件失败: {e}")
 
-    # 7. 演示使用其他引擎
-    logger.info("=== 演示使用其他引擎 ===")
-
-    # 可用引擎列表: ["weave", "stitch", "dream"]
-    # for test_engine in engines:
-    #     try:
-    #         logger.info(f"使用 {test_engine} 引擎创建任务")
-    #         test_task_response = create_task(
-    #             engine=test_engine,
-    #             target_ip=target_ip,
-    #             weaving_pattern=weaving_pattern,
-    #             impairment_device=impairment_device,
-    #         )
-    #         logger.info(f"{test_engine} 引擎创建任务结果: {test_task_response}")
-    #
-    #         # 停止测试任务
-    #         test_task_id = test_task_response["task_id"]
-    #         stop_task(test_engine, test_task_id)
-    #         logger.info(f"{test_engine} 引擎任务已停止")
-    #     except Exception as e:
-    #         logger.error(f"使用 {test_engine} 引擎失败: {e}")
-
     logger.info("TraceLoom API 示例脚本完成")
     print("TraceLoom API 示例脚本完成")
 
 
 if __name__ == "__main__":
+    while True:
+        main()
     main()

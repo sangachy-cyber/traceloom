@@ -32,7 +32,7 @@ app = typer.Typer(name="run_pathlet_clustering", help="运行路径聚类训练�
 @app.command()
 def main(
     n_components: int = typer.Option(3, "--n-components", "-n", help="聚类数量"),
-    confidence_threshold: float = typer.Option(0.85, "--confidence-threshold", "-c", help="置信度阈值"),
+    confidence_threshold: float = typer.Option(0.9, "--confidence-threshold", "-c", help="置信度阈值"),
     assign_test_states: bool = typer.Option(True, "--assign-test-states", "-a", help="是否为测试集分配状态"),
     visualize: bool = typer.Option(True, "--visualize", "-v", help="是否生成可视化"),
 ):
