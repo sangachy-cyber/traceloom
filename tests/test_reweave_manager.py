@@ -53,13 +53,24 @@ class TestWeavingEngine:
 
     def test_weave_string_input(self):
         """测试从字符串输入进行织径"""
-        # 创建模拟的Reweaver
-        with patch.object(self.weaving_engine.reweaver, "generate_trace") as mock_generate:
-            mock_generate.return_value = [[100.0, 0.01, 10.0, 100.0, 0.01, 10.0]] * 100
+        # 创建模拟的Stitcher
+        with (
+            patch.object(self.weaving_engine.stitcher, "stitch") as mock_stitch,
+            patch("traceloom.weaving.engine.HoloWANTrace") as mock_holowan_trace,
+        ):
+            # 创建模拟的网络剖面
+            mock_profile = MagicMock()
+            mock_profile.body.observations = []
+            mock_profile.tail.observations = []
+            mock_stitch.return_value = [mock_profile]
 
-            # 测试重织功能
+            # 模拟HoloWANTrace.load方法
+            mock_trace_instance = mock_holowan_trace.return_value
+            mock_trace_instance.get_filtered_extended_windows_with_stats.return_value = ([], {})
+
+            # 测试绣织功能（reweave模式需要文件路径，这里测试stitch模式）
             pattern_str = "s0x2 -> s1x3"
-            result = self.weaving_engine.weave(pattern_str, mode="reweave")
+            result = self.weaving_engine.weave(pattern_str, mode="stitch")
 
             # 验证结果
             assert isinstance(result, dict)
@@ -70,13 +81,25 @@ class TestWeavingEngine:
 
     def test_weave_list_input(self):
         """测试从列表输入进行织径"""
-        # 创建模拟的Reweaver
-        with patch.object(self.weaving_engine.reweaver, "generate_trace") as mock_generate:
-            mock_generate.return_value = [[100.0, 0.01, 10.0, 100.0, 0.01, 10.0]] * 100
+        # 创建模拟的Stitcher
+        with (
+            patch.object(self.weaving_engine.stitcher, "stitch") as mock_stitch,
+            patch("traceloom.weaving.engine.HoloWANTrace") as mock_holowan_trace,
+        ):
+            # 创建模拟的网络剖面
+            mock_profile = MagicMock()
+            mock_profile.body.observations = []
+            mock_profile.tail.observations = []
+            mock_stitch.return_value = [mock_profile]
 
-            # 测试重织功能
-            pattern_list = [{"state": "s0", "duration": 20}, {"state": "s1", "duration": 30}]
-            result = self.weaving_engine.weave(pattern_list, mode="reweave")
+            # 模拟HoloWANTrace.load方法
+            mock_trace_instance = mock_holowan_trace.return_value
+            mock_trace_instance.get_filtered_extended_windows_with_stats.return_value = ([], {})
+
+            # 测试绣织功能（reweave模式需要文件路径，这里测试stitch模式）
+            # 使用状态ID列表而不是字典列表
+            pattern_list = [0, 1, 0]  # 状态ID列表
+            result = self.weaving_engine.weave(pattern_list, mode="stitch")
 
             # 验证结果
             assert isinstance(result, dict)
@@ -87,13 +110,24 @@ class TestWeavingEngine:
 
     def test_weave_pattern_input(self):
         """测试从Pattern对象输入进行织径"""
-        # 创建模拟的Reweaver
-        with patch.object(self.weaving_engine.reweaver, "generate_trace") as mock_generate:
-            mock_generate.return_value = [[100.0, 0.01, 10.0, 100.0, 0.01, 10.0]] * 100
+        # 创建模拟的Stitcher
+        with (
+            patch.object(self.weaving_engine.stitcher, "stitch") as mock_stitch,
+            patch("traceloom.weaving.engine.HoloWANTrace") as mock_holowan_trace,
+        ):
+            # 创建模拟的网络剖面
+            mock_profile = MagicMock()
+            mock_profile.body.observations = []
+            mock_profile.tail.observations = []
+            mock_stitch.return_value = [mock_profile]
 
-            # 测试重织功能
+            # 模拟HoloWANTrace.load方法
+            mock_trace_instance = mock_holowan_trace.return_value
+            mock_trace_instance.get_filtered_extended_windows_with_stats.return_value = ([], {})
+
+            # 测试绣织功能（reweave模式需要文件路径，这里测试stitch模式）
             pattern = Pattern.from_string("s0x2 -> s1x3")
-            result = self.weaving_engine.weave(pattern, mode="reweave")
+            result = self.weaving_engine.weave(pattern, mode="stitch")
 
             # 验证结果
             assert isinstance(result, dict)
@@ -116,13 +150,20 @@ class TestWeavingEngine:
 
     def test_weave_splicing_error(self):
         """测试织径过程中发生拼接错误"""
-        # 创建模拟的Reweaver，抛出SplicingError
-        with patch.object(self.weaving_engine.reweaver, "generate_trace") as mock_generate:
-            mock_generate.side_effect = SplicingError("拼接失败")
+        # 创建模拟的Stitcher，抛出SplicingError
+        with (
+            patch.object(self.weaving_engine.stitcher, "stitch") as mock_stitch,
+            patch("traceloom.weaving.engine.HoloWANTrace") as mock_holowan_trace,
+        ):
+            mock_stitch.side_effect = SplicingError("拼接失败")
 
-            # 测试织径功能，应该捕获并重新抛出SplicingError
+            # 模拟HoloWANTrace.load方法
+            mock_trace_instance = mock_holowan_trace.return_value
+            mock_trace_instance.get_filtered_extended_windows_with_stats.return_value = ([], {})
+
+            # 测试绣织功能，应该捕获并重新抛出SplicingError
             with pytest.raises(SplicingError):
-                self.weaving_engine.weave("s0x2 -> s1x3", mode="reweave")
+                self.weaving_engine.weave("s0x2 -> s1x3", mode="stitch")
 
     def test_weave_stitch_mode(self):
         """测试绣织模式"""

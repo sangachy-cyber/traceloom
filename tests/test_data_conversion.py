@@ -50,7 +50,9 @@ class TestDataConversion:
         # 创建Pathlet，使用前10个观测作为body，后10个作为tail（实际测试中数量可能不足，这里只做示例）
         body = BodyObservations(observations=observations[:10])
         tail = TailObservations(observations=observations[10:])
-        segment = Pathlet(pathlet_id="test_pathlet", trace_name="test_trace", start_index=0, body=body, tail=tail)
+        segment = Pathlet(
+            pathlet_id="test_pathlet", trace_name="test_trace", start_index=0, dataset="test", body=body, tail=tail
+        )
 
         # 验证丢包率值正确
         assert len(segment.observations) == 3
@@ -93,7 +95,9 @@ class TestDataConversion:
         # 创建Pathlet，使用前10个观测作为body，后10个作为tail（实际测试中数量可能不足，这里只做示例）
         body = BodyObservations(observations=observations[:10])
         tail = TailObservations(observations=observations[10:])
-        segment = Pathlet(pathlet_id="test_pathlet", trace_name="test_trace", start_index=0, body=body, tail=tail)
+        segment = Pathlet(
+            pathlet_id="test_pathlet", trace_name="test_trace", start_index=0, dataset="test", body=body, tail=tail
+        )
 
         # 验证带宽为0时丢包率被设置为1.0
         assert len(segment.observations) == 3
@@ -140,6 +144,7 @@ class TestDataConversion:
             pathlet_id="test_pathlet",
             trace_name="test_trace",
             start_index=0,
+            dataset="test",
             body=body,
             tail=tail,
             is_valid=not has_large_delay,
@@ -215,7 +220,9 @@ class TestDataConversion:
         # 创建Pathlet，使用前100个观测作为body，后10个作为tail
         body = BodyObservations(observations=observations[:100])
         tail = TailObservations(observations=observations[100:])
-        segment = Pathlet(pathlet_id="test_pathlet", trace_name="test_trace", start_index=0, body=body, tail=tail)
+        segment = Pathlet(
+            pathlet_id="test_pathlet", trace_name="test_trace", start_index=0, dataset="test", body=body, tail=tail
+        )
 
         # 验证段有效
         assert segment.is_valid

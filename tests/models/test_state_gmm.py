@@ -33,9 +33,8 @@ class TestStateGMM:
 
     def test_extract_features_empty(self):
         """测试提取空观测数据的特征"""
-        features = StateGMM.extract_features([])
-        assert features.shape == (16,)
-        assert all(f == 0.0 for f in features)
+        with pytest.raises(ValueError):
+            StateGMM.extract_features([])
 
     def test_is_loaded_property(self):
         """测试 is_loaded 属性"""
@@ -57,6 +56,11 @@ class TestStateGMM:
             # 但是保存的模型可能不是训练好的模型
             self.model.save(model_path)
             assert model_path.exists()
+            
+            # 测试加载模型
+            loaded_model = StateGMM()
+            loaded_model.load(model_path)
+            assert loaded_model.is_loaded is True
         finally:
             # 清理临时文件
             if model_path.exists():

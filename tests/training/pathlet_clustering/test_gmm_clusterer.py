@@ -40,9 +40,8 @@ class TestGMMClusterer:
 
     def test_extract_features_empty(self):
         """测试提取空观测数据的特征"""
-        features = GMMClusterer.extract_features([])
-        assert features.shape == (16,)
-        assert all(f == 0.0 for f in features)
+        with pytest.raises(ValueError):
+            GMMClusterer.extract_features([])
 
     def test_fit_predict(self):
         """测试拟合和预测"""
@@ -51,6 +50,9 @@ class TestGMMClusterer:
         for i in range(5):
             pathlet = Pathlet(
                 pathlet_id=f"test_{i}",
+                trace_name=f"trace_{i}",
+                start_index=i * 100,
+                dataset="train",
                 body=BodyObservations(observations=self.test_observations),
                 tail=TailObservations(observations=self.test_observations[:1]),
             )
@@ -72,6 +74,9 @@ class TestGMMClusterer:
         for i in range(5):
             pathlet = Pathlet(
                 pathlet_id=f"test_{i}",
+                trace_name=f"trace_{i}",
+                start_index=i * 100,
+                dataset="train",
                 body=BodyObservations(observations=self.test_observations),
                 tail=TailObservations(observations=self.test_observations[:1]),
             )
@@ -107,6 +112,9 @@ class TestGMMClusterer:
         for i in range(2):
             pathlet = Pathlet(
                 pathlet_id=f"test_{i}",
+                trace_name=f"trace_{i}",
+                start_index=i * 100,
+                dataset="train",
                 body=BodyObservations(observations=self.test_observations),
                 tail=TailObservations(observations=self.test_observations[:1]),
             )

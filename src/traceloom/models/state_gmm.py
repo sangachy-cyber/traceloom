@@ -264,7 +264,7 @@ class StateGMM:
         """
         if not model_path.exists():
             logger.error(f"模型文件不存在: {model_path}")
-            raise
+            raise FileNotFoundError(f"模型文件不存在: {model_path}")
 
         model_data = joblib.load(model_path)
         self.gmm = model_data["gmm"]

@@ -43,7 +43,7 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 from scipy import stats
 
-from traceloom.domain.raw_trace import RawTraceSegment as RawProfile
+from traceloom.domain.pathlet import Pathlet as RawProfile
 
 # 暂时注释掉 ProcessedProfile 的导入，因为该模块在当前架构中不存在
 # from traceloom.weaving.pathlet.profile import ProcessedProfile
@@ -75,19 +75,21 @@ def _get_profile_data(profiles: List[Union[RawProfile, ProcessedProfile]], featu
 
         # 从observations中计算特征值的均值
         feature_values = []
-        for obs in current_profile.observations:
-            if feature == "delay_up":
-                feature_values.append(obs.delay_up)
-            elif feature == "delay_down":
-                feature_values.append(obs.delay_down)
-            elif feature == "loss_up":
-                feature_values.append(obs.loss_up)
-            elif feature == "loss_down":
-                feature_values.append(obs.loss_down)
-            elif feature == "bw_up":
-                feature_values.append(obs.bw_up)
-            elif feature == "bw_down":
-                feature_values.append(obs.bw_down)
+        # 检查对象是否有observations属性
+        if hasattr(current_profile, "observations"):
+            for obs in current_profile.observations:
+                if feature == "delay_up":
+                    feature_values.append(obs.delay_up)
+                elif feature == "delay_down":
+                    feature_values.append(obs.delay_down)
+                elif feature == "loss_up":
+                    feature_values.append(obs.loss_up)
+                elif feature == "loss_down":
+                    feature_values.append(obs.loss_down)
+                elif feature == "bw_up":
+                    feature_values.append(obs.bw_up)
+                elif feature == "bw_down":
+                    feature_values.append(obs.bw_down)
 
         # 计算均值并添加到结果列表
         if feature_values:
