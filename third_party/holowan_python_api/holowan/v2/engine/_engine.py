@@ -347,7 +347,7 @@ class Engine(object):
         """从 HoloWAN 获取当前引擎最新的报文分类器和 paths 的配置
 
         """
-        self._login(self._username, self._password)
+        # self._login(self._username, self._password)
         self._get_packet_classifier_info()
         self._paths_info = self._get_current_paths_info()
         self._initialize_paths()
