@@ -130,5 +130,8 @@ data/*.txt
 # Trae documents directory
 .trae/documents/
 
+# Database directory
+data/db/
+
 output/
 outputs/
