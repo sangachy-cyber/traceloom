@@ -143,13 +143,16 @@ class WeavingEngine:
         # 根据模式不同，对输入数据进行不同处理
         if mode == "reweave":
             # 重织模式：直接处理输入内容，不解析为Pattern
-            state_list = []
-            holowan_trace = HoloWANTrace.load(input_data)
-            pathlets, stats = holowan_trace.get_filtered_extended_windows_with_stats(step=100)
-            for pathlet in pathlets:
-                state_list.append(self.weaving_law.predict_state(pathlet))
+            if '->' not in input_data and Path(input_data).is_file():
+                state_list = []
+                holowan_trace = HoloWANTrace.load(input_data)
+                pathlets, stats = holowan_trace.get_filtered_extended_windows_with_stats(step=100)
+                for pathlet in pathlets:
+                    state_list.append(self.weaving_law.predict_state(pathlet))
 
-            pattern = self.pattern_parser.parse(state_list)
+                pattern = self.pattern_parser.parse(state_list)
+            else:
+                pattern = self.pattern_parser._from_string(input_data)
             result = self._reweave(pattern, [])
         else:
             # 绣织和广织模式：解析输入为Pattern

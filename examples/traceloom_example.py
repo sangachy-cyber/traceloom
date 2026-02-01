@@ -33,9 +33,13 @@ def main():
         logger.info("=== 重织（reweave）示例 ====")
         # 使用重织功能，从真实HoloWAN文件提取并重组路径
         # 注意：这里使用了一个示例文件路径，实际使用时需要替换为真实文件
-        sample_file = settings.RAW_DIR / "20251203_230356_b6x-playback.txt"
-        tl.reweave(input_file=str(sample_file), output=str(settings.OUTPUT_DIR / "reweave_path.txt"))
+        # sample_file = settings.RAW_DIR / "20251203_230356_b6x-playback.txt"
+        # tl.reweave(input_file=str(sample_file), output=str(settings.OUTPUT_DIR / "reweave_path.txt"))
         # logger.info(f"重织结果: {reweave_result}")
+        # sample = "s2x2 -> s1x57 -> s2x1 -> s1x45 -> s2x1 -> s1x5 -> s2x1 -> s1x124 -> s2x1 -> s1x70 -> s2x1 -> s1x47 -> s2x1 -> s1x4"
+        sample = "s2x2 -> s1x2 -> s0x2 > s1x2"
+
+        tl.reweave(input_file=str(" -> ".join([sample] * 100)), output=str(settings.OUTPUT_DIR / "reweave_path.txt"))
 
         # logger.info("=== 绣织（embroider）示例 ====")
         # # 使用绣织功能，按织样构造质径
@@ -60,7 +64,7 @@ def main():
     except NotImplementedError:
         logger.info("功能尚未实现，跳过该操作")
     except Exception:
-        logger.error(f"API调用失败: {traceback.print_exc()}", exc_info=True)
+        logger.error(f"API调用失败: {traceback.format_exc()}", exc_info=True)
 
     logger.info("TraceLoom示例脚本完成")
 

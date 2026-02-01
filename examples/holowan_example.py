@@ -169,11 +169,11 @@ def main():
 
     # 配置参数
     engine_id = 1
-    target_ip = "10.10.10.10"
+    target_ip = "19.13.169.52"
     path_name = "LoomNet"
     # 临时回放文件路径
-    temp_dir = Path(__file__).parent / "temp"
-    playback_file_path = temp_dir / "temp_playback.txt"
+    temp_dir = Path(__file__).parent.parent / "data" / 'outputs'
+    playback_file_path = temp_dir / "reweave_path.txt"
 
     # 获取回放文件名称
     playback_name = playback_file_path.name
@@ -211,15 +211,15 @@ def main():
         if not bind_ip_to_path(holowan_manager, target_ip, path_id):
             return
 
-        # 5. 上传并应用回放文件
-        if not upload_and_apply_playback(holowan_manager, playback_file_path, playback_name, path_id):
-            return
-
-        # 6. 执行业务逻辑
-        execute_business_logic()
-
-        # 7. 清理资源
-        cleanup_resources(holowan_manager, target_ip, playback_name, path_id)
+        # # 5. 上传并应用回放文件
+        # if not upload_and_apply_playback(holowan_manager, playback_file_path, playback_name, path_id):
+        #     return
+        #
+        # # 6. 执行业务逻辑
+        # execute_business_logic()
+        #
+        # # 7. 清理资源
+        # cleanup_resources(holowan_manager, target_ip, playback_name, path_id)
 
         logger.info("完整流程执行成功")
         logger.info("\n🎉 完整流程执行成功！")

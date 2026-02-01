@@ -289,7 +289,7 @@ def main():
         return
 
     # 2. 准备测试数据
-    target_ip = "192.168.1.100"
+    target_ip = "19.13.169.52"
     weaving_pattern = "s0x2 -> s2x6"
     impairment_device = {"host": "160.100.15.195", "port": 8080, "engine_id": 1, "path_name": "LoomNet"}
 
