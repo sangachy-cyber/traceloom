@@ -206,11 +206,11 @@ def tl_execute_create_task(engine: str, target_ip: str, weaving_pattern: str, im
         Dict[str, Any]: 创建任务结果
     """
     return _tl_execute_step(
-        "创建织径任务", 
-        create_task, 
-        engine=engine, 
-        target_ip=target_ip, 
-        weaving_pattern=weaving_pattern, 
+        "创建织径任务",
+        create_task,
+        engine=engine,
+        target_ip=target_ip,
+        weaving_pattern=weaving_pattern,
         impairment_device=impairment_device
     )
 
@@ -295,9 +295,9 @@ def main():
 
     # 3. 创建任务（使用 reweave 引擎）
     task_response = tl_execute_create_task(
-        engine="reweave", 
-        target_ip=target_ip, 
-        weaving_pattern=weaving_pattern, 
+        engine="reweave",
+        target_ip=target_ip,
+        weaving_pattern=weaving_pattern,
         impairment_device=impairment_device
     )
     if not task_response:
@@ -307,7 +307,7 @@ def main():
     engine = "reweave"  # 与创建任务时使用的引擎一致
 
     # 4. 查询任务状态
-    status_check_result = tl_execute_task_status_check(engine, task_id)
+    tl_execute_task_status_check(engine, task_id)
 
     # 5. 停止任务
     tl_execute_stop_task(engine, task_id)

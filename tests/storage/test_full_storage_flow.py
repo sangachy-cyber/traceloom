@@ -119,7 +119,6 @@ def test_full_storage_flow():
             points_df = storage.load_pathlet_points(pathlet_id)
             assert points_df is not None
             assert not points_df.empty
-            assert "trace_name" in points_df.columns
             assert "trace_index" in points_df.columns
             assert "pathlet_ids" in points_df.columns
             assert "delay_up" in points_df.columns

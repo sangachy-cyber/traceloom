@@ -1,24 +1,25 @@
 # -*- coding: utf-8 -*-
 """验证模块测试"""
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
 from traceloom.validation.validator import (
-    calculate_all_metrics,
-    calculate_rtt_metrics,
-    calculate_loss_metrics,
-    calculate_bandwidth_metrics,
-    calculate_sequence_metrics,
-    calculate_correlation_metrics,
-    validate_trace,
-    compare_traces,
-    generate_trace_report,
-    validate_trace_realism,
-    _get_profile_data,
-    _validate_metrics,
     _calculate_score,
     _calculate_similarity_score,
+    _get_profile_data,
+    _validate_metrics,
+    calculate_all_metrics,
+    calculate_bandwidth_metrics,
+    calculate_correlation_metrics,
+    calculate_loss_metrics,
+    calculate_rtt_metrics,
+    calculate_sequence_metrics,
+    compare_traces,
+    generate_trace_report,
+    validate_trace,
+    validate_trace_realism,
 )
 
 

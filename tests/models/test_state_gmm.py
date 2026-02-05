@@ -56,7 +56,7 @@ class TestStateGMM:
             # 但是保存的模型可能不是训练好的模型
             self.model.save(model_path)
             assert model_path.exists()
-            
+
             # 测试加载模型
             loaded_model = StateGMM()
             loaded_model.load(model_path)

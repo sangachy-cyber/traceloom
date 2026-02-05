@@ -4,15 +4,14 @@
 import tempfile
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from traceloom.app.api.v1.schemas import WeaveRequest
-from traceloom.core.exceptions import FileOperationError
 from traceloom.services.weaver_service import WeaverService
-from traceloom.storage.task_store import TaskStore
 from traceloom.storage.pathlet_storage import PathletStorage
+from traceloom.storage.task_store import TaskStore
 
 
 class TestWeaverService:
@@ -71,23 +70,25 @@ class TestWeaverService:
                     with patch("builtins.open", MagicMock()):
                         # 模拟 os.unlink
                         with patch("os.unlink", MagicMock()):
-                            # 模拟 HoloWAN 设备管理
-                            mock_holowan = MagicMock()
-                            mock_holowan.connect.return_value = None
-                            mock_holowan.get_path_id_by_name.return_value = 1
-                            mock_holowan.bind_ip_to_path.return_value = None
-                            mock_holowan.upload_and_apply_playback.return_value = None
-                            with patch("traceloom.services.weaver_service.HoloWAN", return_value=mock_holowan):
-                                # 模拟临时文件
-                                mock_temp_file = MagicMock()
-                                mock_temp_file.name = "temp_file.txt"
-                                with patch("tempfile.NamedTemporaryFile", return_value=mock_temp_file):
-                                    # 执行任务
-                                    self.weaver_service.execute_task("task_123", mock_request)
+                            # 模拟 Path.exists
+                            with patch("pathlib.Path.exists", return_value=True):
+                                # 模拟 HoloWAN 设备管理
+                                mock_holowan = MagicMock()
+                                mock_holowan.connect.return_value = None
+                                mock_holowan.get_path_id_by_name.return_value = 1
+                                mock_holowan.bind_ip_to_path.return_value = None
+                                mock_holowan.upload_and_apply_playback.return_value = None
+                                with patch("traceloom.services.weaver_service.HoloWAN", return_value=mock_holowan):
+                                    # 模拟临时文件
+                                    mock_temp_file = MagicMock()
+                                    mock_temp_file.name = "temp_file.txt"
+                                    with patch("tempfile.NamedTemporaryFile", return_value=mock_temp_file):
+                                        # 执行任务
+                                        self.weaver_service.execute_task("task_123", mock_request)
 
-                                    # 验证方法调用
-                                    self.mock_task_store.update_started_at.assert_called_with("task_123")
-                                    self.mock_task_store.update_status.assert_any_call("task_123", "running")
+                                        # 验证方法调用
+                                        self.mock_task_store.update_started_at.assert_called_with("task_123")
+                                        self.mock_task_store.update_status.assert_any_call("task_123", "running")
 
     def test_execute_task_exception(self):
         """测试执行织径任务时发生异常"""
@@ -224,7 +225,7 @@ class TestWeaverService:
 
             # 验证调用
             self.mock_task_store.update_status.assert_called_with("task_123", "completed", error="任务被用户取消")
-            mock_holowan.cleanup.assert_called_with("10.10.10.10", "weaver_task_123.txt", 1)
+            mock_holowan.cleanup.assert_called_with("10.10.10.10", "task_123.txt", 1)
 
     def test_cancel_task_nonexistent(self):
         """测试取消不存在的任务"""

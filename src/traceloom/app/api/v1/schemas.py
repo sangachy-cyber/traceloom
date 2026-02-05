@@ -3,7 +3,7 @@
 定义 API 请求和响应的数据结构
 """
 
-from datetime import datetime
+
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -13,7 +13,7 @@ class HealthCheckResponse(BaseModel):
     """健康检查响应模型"""
 
     status: str = Field(..., description="服务状态")
-    timestamp: datetime = Field(..., description="检查时间")
+    timestamp: str = Field(..., description="检查时间")
     version: str = Field(..., description="API 版本")
 
 
@@ -70,3 +70,33 @@ class ErrorResponse(BaseModel):
     """错误响应模型"""
 
     detail: str = Field(..., description="错误详情")
+
+
+class HoloWANBindIPRequest(BaseModel):
+    """绑定IP请求模型"""
+
+    target_ip: str = Field(..., description="目标流量 IP")
+    impairment_device: ImpairmentDevice = Field(..., description="损伤设备信息")
+
+
+class HoloWANBindIPResponse(BaseModel):
+    """绑定IP响应模型"""
+
+    status: str = Field(..., description="操作状态")
+    path_id: int = Field(..., description="绑定的路径 ID")
+    message: str = Field(..., description="响应消息")
+
+
+class HoloWANApplyRequest(BaseModel):
+    """应用文件请求模型"""
+
+    file_name: str = Field(..., description="文件名")
+    impairment_device: ImpairmentDevice = Field(..., description="损伤设备信息")
+
+
+class HoloWANApplyResponse(BaseModel):
+    """应用文件响应模型"""
+
+    status: str = Field(..., description="操作状态")
+    path_id: int = Field(..., description="应用的路径 ID")
+    message: str = Field(..., description="响应消息")

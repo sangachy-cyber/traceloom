@@ -16,6 +16,12 @@ import pyarrow.parquet as pq
 from traceloom.core.config import settings
 from traceloom.core.logger import logger
 from traceloom.domain.pathlet import BodyObservations, Observation, Pathlet, TailObservations
+from traceloom.storage.managers import (
+    PathletCacheManager,
+    PathletMetadataManager,
+    PathletModelManager,
+    PathletPointsManager,
+)
 from traceloom.storage.schemas import PathletMetadataFields, PointDataFields
 
 
@@ -118,29 +124,11 @@ class PathletStorage:
         self.pathlet_dir = storage_dir
         self.pathlet_dir.mkdir(exist_ok=True, parents=True)
 
-        # 点数据目录 - 存储径元的详细观测数据（静态数据）
-        self.points_file = self.pathlet_dir / "pathlets_points.parquet"
-        # 如果 points_file 是一个文件，则删除它并创建一个目录
-        if self.points_file.exists() and self.points_file.is_file():
-            self.points_file.unlink()
-            logger.warning(f"已删除点数据文件，将创建目录: {self.points_file}")
-        # 创建 points_file 目录
-        self.points_file.mkdir(exist_ok=True, parents=True)
-        # 主数据文件 - 存储径元的基本信息，如ID、状态、轨迹名称等（动态数据，需要刷新）
-        self.main_data_file = self.pathlet_dir / "pathlets.parquet"
-        # GMM模型文件 - 存储训练好的聚类模型
-        self.gmm_model_file = self.pathlet_dir / "gmm_model.joblib"
-        # 状态映射文件 - 存储状态ID到状态名称的映射
-        self.state_mapping_file = self.pathlet_dir / "state_mapping.json"
-
-        # 缓存配置
-        self._main_data_cache: Optional[pd.DataFrame] = None  # 主数据缓存（pathlets.parquet）
-        self._points_cache: Optional[pd.DataFrame] = None  # 点数据缓存（pathlets_points.parquet，静态）
-        self._cache_timestamp: Dict[str, float] = {}
-        self._cache_expiry_seconds = 300  # 缓存过期时间，5分钟
-        self._cache_size_limit = 100000  # 缓存大小限制（行数）
-        # 点数据加载标记（实例变量，确保每个实例有独立的加载状态）
-        self._points_loaded: bool = False
+        # 初始化各个管理器
+        self.metadata_manager = PathletMetadataManager(self.pathlet_dir / "pathlets.parquet")
+        self.points_manager = PathletPointsManager(self.pathlet_dir / "pathlets_points")
+        self.cache_manager = PathletCacheManager()
+        self.model_manager = PathletModelManager(self.pathlet_dir)
 
         # 标记初始化完成
         self._initialized = True
@@ -388,9 +376,7 @@ class PathletStorage:
             storage.clear_cache()
             print("缓存已清除")
         """
-        self._main_data_cache = None
-        self._points_cache = None
-        self._cache_timestamp.clear()
+        self.cache_manager.clear_cache()
 
     def save_pathlets(self, pathlets: List[Pathlet], update_points: bool = False) -> None:
         """保存Pathlet数据。
@@ -417,6 +403,7 @@ class PathletStorage:
                 pathlet_id="pathlet_001",
                 trace_name="trace_001",
                 start_index=0,
+                dataset="train",
                 body=BodyObservations(),
                 tail=TailObservations()
             )
@@ -425,6 +412,7 @@ class PathletStorage:
                 pathlet_id="pathlet_002",
                 trace_name="trace_002",
                 start_index=100,
+                dataset="train",
                 body=BodyObservations(),
                 tail=TailObservations()
             )
@@ -435,62 +423,35 @@ class PathletStorage:
         if not pathlets:
             raise ValueError("Pathlet数据列表为空，无法保存")
 
-        # 假设所有传入的Pathlet对象都是有效的
-        valid_pathlets = pathlets
-
-        # 使用内部方法转换数据
-        new_metadata_df, new_points_df = PathletStorage.pathlets_to_storage(valid_pathlets)
-
-        # 生成主数据DataFrame（对应pathlets.parquet）
-        main_data_df = new_metadata_df[
-            [
-                PathletMetadataFields.PATHLET_ID,
-                PathletMetadataFields.STATE_ID,
-                PathletMetadataFields.TRACE_NAME,
-                PathletMetadataFields.START_INDEX,
-                PathletMetadataFields.IS_VALID,
-                PathletMetadataFields.DATASET,
-            ]
-        ].copy()
-
-        # 如果文件已存在，读取现有数据并合并
-        if self.main_data_file.exists():
-            existing_main_df = self._read_main_data()
-            # 统一字段名，确保与新数据一致
-            # if "source_file" in existing_main_df.columns and "trace_name" not in existing_main_df.columns:
-            #     existing_main_df.rename(columns={"source_file": "trace_name"}, inplace=True)
-            # 合并数据，去重（基于pathlet_id）
-            combined_main_df = pd.concat([existing_main_df, main_data_df], ignore_index=True)
-            combined_main_df = combined_main_df.drop_duplicates(subset=["pathlet_id"], keep="last")
-            # # 确保只保留 trace_name 列
-            # if "source_file" in combined_main_df.columns:
-            #     combined_main_df.drop(columns=["source_file"], inplace=True)
-        else:
-            combined_main_df = main_data_df
-
-        # 写入Parquet文件
-        self._write_main_data(combined_main_df)
+        # 保存元数据
+        self.metadata_manager.save_metadata(pathlets)
 
         # 只有在必要时才更新点数据
         if update_points:
-            self._write_points(new_points_df)
-            self._points_loaded = True
+            self.points_manager.save_points(pathlets)
+            self.cache_manager.set_points_loaded(True)
             logger.info("点数据已更新")
 
         # 清除缓存，确保下次读取时能获取最新数据
         self.clear_cache()
 
     def load_pathlets(
-        self, state_id: Optional[int] = None, is_valid: Optional[bool] = None, dataset: Optional[str] = None
+        self,
+        state_id: Optional[int] = None,
+        is_valid: Optional[bool] = None,
+        dataset: Optional[str] = None,
+        batch_size: Optional[int] = None,
     ) -> List[Pathlet]:
         """加载Pathlet数据。
 
         从Parquet文件加载元信息和点数据，合并为Pathlet列表。
+        支持批量处理，减少内存使用。
 
         参数:
             state_id: 可选，按状态ID筛选
             is_valid: 可选，按有效性筛选
             dataset: 可选，按数据集划分筛选（如 train/test/val）
+            batch_size: 可选，批量处理大小，用于减少内存使用
 
         返回:
             List[Pathlet]: Pathlet列表
@@ -520,55 +481,61 @@ class PathletStorage:
             # 组合过滤条件
             filtered_pathlets = storage.load_pathlets(state_id=0, is_valid=True, dataset="train")
             print(f"加载了 {len(filtered_pathlets)} 个符合条件的Pathlet")
+
+            # 使用批量处理加载大量数据
+            large_pathlets = storage.load_pathlets(batch_size=1000)
+            print(f"批量加载了 {len(large_pathlets)} 个Pathlet")
         """
+        logger.info(f"加载径元[state_id:{state_id}, is_valid:{is_valid}, dataset:{dataset}, batch_size:{batch_size}]")
 
-        if not self.main_data_file.exists():
-            logger.warning(f"Pathlet主数据文件不存在: {self.pathlet_dir}")
-            return []
-        logger.info(f"加载全量径元[state_id:{state_id}, is_valid:{is_valid}, dataset:{dataset}]")
-        # 读取主数据，使用谓词下推
-        main_data_table = pq.read_table(self.main_data_file)
+        # 生成缓存键
+        cache_key = f"main_data_{state_id}_{is_valid}_{dataset}"
 
-        # 按状态ID筛选
-        if state_id is not None:
-            main_data_table = main_data_table.filter(pa.compute.equal(main_data_table["state_id"], state_id))
-            if main_data_table.num_rows == 0:
-                return []
-
-        # 按有效性筛选
-        if is_valid is not None:
-            main_data_table = main_data_table.filter(pa.compute.equal(main_data_table["is_valid"], is_valid))
-            if main_data_table.num_rows == 0:
-                return []
-
-        # 按数据集筛选
-        if dataset is not None:
-            main_data_table = main_data_table.filter(pa.compute.equal(main_data_table["dataset"], dataset))
-            if main_data_table.num_rows == 0:
-                return []
-
-        main_data_df = main_data_table.to_pandas()
-
-        # 只有当有主数据时才读取点数据
-        if main_data_df.empty:
-            return []
-
-        # 读取点数据（静态数据，只加载一次）
-        if not self._points_loaded:
-            points_df = self._read_points()
-            self._points_loaded = True
+        # 尝试从缓存加载
+        cached_metadata = self.cache_manager.get_main_data(cache_key)
+        if cached_metadata is not None:
+            metadata_df = cached_metadata
         else:
-            # 使用缓存的点数据
-            if self._points_cache is not None:
-                points_df = self._points_cache
-            else:
-                points_df = self._read_points()
+            # 加载元数据
+            metadata_df = self.metadata_manager.load_metadata(state_id, is_valid, dataset)
+            # 缓存元数据
+            if not metadata_df.empty:
+                self.cache_manager.set_main_data(cache_key, metadata_df)
 
-        # 转换列名以匹配适配器期望的格式
-        metadata_df = main_data_df.copy()
+        # 只有当有主数据时才继续处理
+        if metadata_df.empty:
+            logger.info("没有找到符合条件的径元")
+            return []
 
-        # 使用内部方法转换数据
-        pathlets = PathletStorage.storage_to_pathlets(metadata_df, points_df)
+        # 提取唯一的trace_name列表
+        trace_names = metadata_df[PathletMetadataFields.TRACE_NAME].unique().tolist()
+
+        # 尝试从缓存加载点数据
+        points_cache_key = f"points_{'_'.join(trace_names[:5])}"  # 使用前5个trace_name作为缓存键
+        cached_points = self.cache_manager.get_points_data(points_cache_key)
+
+        if cached_points is not None:
+            points_df = cached_points
+        else:
+            # 加载点数据，只加载需要的trace_name
+            points_df = self.points_manager.load_points(trace_names)
+            # 缓存点数据
+            if not points_df.empty:
+                self.cache_manager.set_points_data(points_cache_key, points_df)
+            # 设置点数据加载标记
+            self.cache_manager.set_points_loaded(True)
+
+        # 如果指定了批量大小，使用批量处理
+        if batch_size and batch_size > 0:
+            pathlets = []
+            # 分批处理元数据
+            for i in range(0, len(metadata_df), batch_size):
+                batch_metadata = metadata_df.iloc[i : i + batch_size]
+                batch_pathlets = self._batch_process_pathlets(batch_metadata, points_df)
+                pathlets.extend(batch_pathlets)
+        else:
+            # 一次性处理所有数据
+            pathlets = self._process_pathlets(metadata_df, points_df)
 
         # 打印统计信息
         logger.info(f"成功加载 {len(pathlets)} 个径元")
@@ -622,6 +589,149 @@ class PathletStorage:
                 )
 
         return pathlets
+
+    def _process_pathlets(self, metadata_df: pd.DataFrame, points_df: pd.DataFrame) -> List[Pathlet]:
+        """处理Pathlet数据
+
+        根据元数据和点数据，构建Pathlet对象列表。
+
+        参数:
+            metadata_df: 元数据DataFrame
+            points_df: 点数据DataFrame
+
+        返回:
+            List[Pathlet]: Pathlet列表
+        """
+        pathlets = []
+
+        # 按径元分组点数据
+        pathlet_points = {}
+        if not points_df.empty:
+            # 使用固定字段名
+            id_column = PointDataFields.PATHLET_IDS
+
+            for _idx, row in points_df.iterrows():
+                # 直接使用 pathlet_ids 字段
+                pathlet_ids = row[id_column]
+
+                for pathlet_id in pathlet_ids:
+                    if pathlet_id not in pathlet_points:
+                        pathlet_points[pathlet_id] = []
+                    pathlet_points[pathlet_id].append(row)
+        else:
+            logger.warning("点数据为空，将创建不含观测数据的 Pathlet 对象")
+
+        # 构建 Pathlet 对象
+        for _, metadata_row in metadata_df.iterrows():
+            pathlet = self._build_pathlet(metadata_row, pathlet_points)
+            if pathlet:
+                pathlets.append(pathlet)
+
+        return pathlets
+
+    def _batch_process_pathlets(self, metadata_df: pd.DataFrame, points_df: pd.DataFrame) -> List[Pathlet]:
+        """批量处理Pathlet数据
+
+        根据元数据和点数据，批量构建Pathlet对象列表。
+
+        参数:
+            metadata_df: 元数据DataFrame
+            points_df: 点数据DataFrame
+
+        返回:
+            List[Pathlet]: Pathlet列表
+        """
+        return self._process_pathlets(metadata_df, points_df)
+
+    def _build_pathlet(self, metadata_row: pd.Series, pathlet_points: Dict[str, List[pd.Series]]) -> Optional[Pathlet]:
+        """构建单个Pathlet对象
+
+        根据元数据行和点数据，构建单个Pathlet对象。
+
+        参数:
+            metadata_row: 元数据行
+            pathlet_points: 按径元ID分组的点数据
+
+        返回:
+            Optional[Pathlet]: Pathlet对象，如果构建失败则返回None
+        """
+        pathlet_id = metadata_row[PathletMetadataFields.PATHLET_ID]
+        logger.debug(f"处理径元: {pathlet_id}")
+
+        start_index = metadata_row[PathletMetadataFields.START_INDEX]
+        trace_name = metadata_row[PathletMetadataFields.TRACE_NAME]
+        dataset = metadata_row[PathletMetadataFields.DATASET]
+
+        # 提取该径元的点数据
+        pathlet_points_list = pathlet_points.get(pathlet_id, [])
+
+        # 按 trace_index 排序
+        pathlet_points_list.sort(key=lambda x: x[PointDataFields.TRACE_INDEX])
+
+        # 构建 BodyObservations 和 TailObservations
+        body_observations = []
+        tail_observations = []
+
+        # 计算预期的 trace_index 范围
+        expected_trace_indices = set(range(start_index, start_index + 110))
+        actual_trace_indices = set()
+
+        for point in pathlet_points_list:
+            trace_index = point[PointDataFields.TRACE_INDEX]
+            actual_trace_indices.add(trace_index)
+
+            # 计算相对索引
+            relative_index = trace_index - start_index
+
+            # 创建观测数据
+            obs = Observation(
+                delay_up=point[PointDataFields.DELAY_UP],
+                loss_up=point[PointDataFields.LOSS_UP],
+                bw_up=point[PointDataFields.BW_UP],
+                delay_down=point[PointDataFields.DELAY_DOWN],
+                loss_down=point[PointDataFields.LOSS_DOWN],
+                bw_down=point[PointDataFields.BW_DOWN],
+            )
+
+            # 按相对索引分配到 body 或 tail
+            if relative_index < 100:
+                body_observations.append(obs)
+            elif relative_index < 110:
+                tail_observations.append(obs)
+
+        # 验证数据完整性
+        missing_indices = expected_trace_indices - actual_trace_indices
+        if missing_indices:
+            logger.warning(f"径元 {pathlet_id} 缺少 {len(missing_indices)} 个点数据: {sorted(missing_indices)[:5]}...")
+
+        # 检查是否有观测数据
+        total_obs = len(body_observations) + len(tail_observations)
+        if total_obs == 0:
+            logger.warning(f"径元 {pathlet_id} 没有观测数据，跳过")
+            return None
+
+        # 从 metadata_row 中提取 state_id
+        state_id = metadata_row[PathletMetadataFields.STATE_ID]
+        from traceloom.domain.state import StateLabel
+
+        state_label = StateLabel(state_id=state_id)
+
+        # 创建 Pathlet 对象
+        try:
+            pathlet = Pathlet(
+                pathlet_id=pathlet_id,
+                trace_name=trace_name,
+                start_index=start_index,
+                dataset=dataset,
+                body=BodyObservations(observations=body_observations),
+                tail=TailObservations(observations=tail_observations),
+                state_label=state_label,  # 从 metadata_row 中恢复
+                is_valid=metadata_row[PathletMetadataFields.IS_VALID],
+            )
+            return pathlet
+        except Exception as e:
+            logger.error(f"构建径元 {pathlet_id} 时出错: {e}")
+            return None
 
     def _write_metadata(self, metadata: pd.DataFrame) -> None:
         """写入元信息到Parquet文件。
@@ -841,12 +951,7 @@ class PathletStorage:
             count = storage.get_pathlet_count()
             print(f"总共有 {count} 个Pathlet")
         """
-
-        if not self.main_data_file.exists():
-            return 0
-
-        main_data_df = self._read_main_data()
-        return len(main_data_df)
+        return self.metadata_manager.get_pathlet_count()
 
     def get_state_distribution(self) -> Dict[int, int]:
         """获取状态分布。
@@ -866,14 +971,7 @@ class PathletStorage:
             for state_id, count in distribution.items():
                 print(f"状态 {state_id}: {count} 个Pathlet")
         """
-
-        if not self.main_data_file.exists():
-            return {}
-
-        main_data_df = self._read_main_data()
-        state_counts = main_data_df[PathletMetadataFields.STATE_ID].value_counts().to_dict()
-
-        return state_counts
+        return self.metadata_manager.get_state_distribution()
 
     def load_pathlet_points(self, pathlet_id: str) -> Optional[pd.DataFrame]:
         """加载指定Pathlet的点数据。
@@ -902,41 +1000,7 @@ class PathletStorage:
             else:
                 print(f"Pathlet {pathlet_id} 不存在或无点数据")
         """
-
-        if not self.points_file.exists():
-            logger.warning(f"点数据文件不存在: {self.points_file}")
-            return None
-
-        points_df = self._read_points()
-
-        # 检查是否存在点数据
-        if points_df.empty:
-            logger.warning("点数据文件为空")
-            return None
-
-        # 确定使用哪个字段来存储径元ID
-        id_column = (
-            PointDataFields.PATHLET_IDS
-            if PointDataFields.PATHLET_IDS in points_df.columns
-            else "containing_pathlet_ids"
-        )
-
-        # 检查数组字段是否包含指定的pathlet_id
-        if id_column in points_df.columns:
-            pathlet_points = points_df[points_df[id_column].apply(lambda x: pathlet_id in x)]
-        else:
-            logger.warning(f"点数据中不存在 {id_column} 字段")
-            return None
-
-        if pathlet_points.empty:
-            logger.warning(f"没有找到Pathlet {pathlet_id} 的点数据")
-            return None
-
-        # 按trace_index排序
-        if PointDataFields.TRACE_INDEX in pathlet_points.columns:
-            pathlet_points = pathlet_points.sort_values(PointDataFields.TRACE_INDEX)
-
-        return pathlet_points
+        return self.points_manager.load_pathlet_points(pathlet_id)
 
     def get_raw_profile(self, pathlet_id: str) -> Optional[Dict[str, Any]]:
         """获取指定径元ID对应的原始数据
@@ -968,17 +1032,16 @@ class PathletStorage:
                 print(f"径元 {pathlet_id} 不存在或无数据")
         """
 
-        if not self.main_data_file.exists() or not self.points_file.exists():
-            logger.warning(f"Pathlet数据文件不存在: {self.pathlet_dir}")
+        # 检查元数据文件是否存在
+        if not self.metadata_manager.metadata_file.exists():
+            logger.warning(f"Pathlet元数据文件不存在: {self.pathlet_dir}")
             return None
 
-        # 读取主数据
-        main_data_df = self._read_main_data()
-        # 转换列名以匹配原方法的期望格式
-        metadata_df = main_data_df.copy()
-        metadata_df.rename(columns={"source_file": PathletMetadataFields.TRACE_NAME}, inplace=True)
-        if PathletMetadataFields.IS_VALID not in metadata_df.columns:
-            metadata_df[PathletMetadataFields.IS_VALID] = True  # 默认所有Pathlet都是有效的
+        # 读取元数据
+        metadata_df = self.metadata_manager.load_metadata()
+        if metadata_df is None or metadata_df.empty:
+            logger.warning(f"Pathlet元数据文件为空: {self.pathlet_dir}")
+            return None
 
         metadata_row = metadata_df[metadata_df[PathletMetadataFields.PATHLET_ID] == pathlet_id]
 
@@ -1088,53 +1151,7 @@ class PathletStorage:
             else:
                 print(f"Pathlet {pathlet_id} 不存在或无点数据")
         """
-
-        # 按trace_index排序
-        pathlet_points = pathlet_points.sort_values(PointDataFields.TRACE_INDEX)
-
-        # 分离上下文点和延续点
-        if start_index is not None:
-            # 使用相对索引：trace_index - start_index
-            ctx_points = pathlet_points[
-                pathlet_points[PointDataFields.TRACE_INDEX].apply(lambda x: (x - start_index) < 100)
-            ]
-            cont_points = pathlet_points[
-                pathlet_points[PointDataFields.TRACE_INDEX].apply(lambda x: 100 <= (x - start_index) < 110)
-            ]
-        else:
-            # 如果没有提供start_index，按前100个作为上下文点，后10个作为延续点
-            ctx_points = pathlet_points.head(100)
-            cont_points = pathlet_points.tail(10)
-
-        # 构建主体观测数据
-        body_observations = []
-        for _, row in ctx_points.iterrows():
-            obs = Observation(
-                delay_up=row[PointDataFields.DELAY_UP],
-                loss_up=row[PointDataFields.LOSS_UP],
-                bw_up=row[PointDataFields.BW_UP],
-                delay_down=row[PointDataFields.DELAY_DOWN],
-                loss_down=row[PointDataFields.LOSS_DOWN],
-                bw_down=row[PointDataFields.BW_DOWN],
-            )
-            body_observations.append(obs)
-        body = BodyObservations(observations=body_observations)
-
-        # 构建融尾观测数据
-        tail_observations = []
-        for _, row in cont_points.iterrows():
-            obs = Observation(
-                delay_up=row[PointDataFields.DELAY_UP],
-                loss_up=row[PointDataFields.LOSS_UP],
-                bw_up=row[PointDataFields.BW_UP],
-                delay_down=row[PointDataFields.DELAY_DOWN],
-                loss_down=row[PointDataFields.LOSS_DOWN],
-                bw_down=row[PointDataFields.BW_DOWN],
-            )
-            tail_observations.append(obs)
-        tail = TailObservations(observations=tail_observations)
-
-        return body, tail
+        return self.points_manager.reconstruct_profile(pathlet_points, start_index)
 
     def clear(self) -> None:
         """清空Pathlet数据

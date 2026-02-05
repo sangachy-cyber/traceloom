@@ -77,7 +77,7 @@ class TestWeavingEngine:
             assert "path_id" in result
             assert "duration_sec" in result
             assert "state_sequence" in result
-            assert "trace_data" in result
+            assert "trace" in result
 
     def test_weave_list_input(self):
         """测试从列表输入进行织径"""
@@ -106,7 +106,7 @@ class TestWeavingEngine:
             assert "path_id" in result
             assert "duration_sec" in result
             assert "state_sequence" in result
-            assert "trace_data" in result
+            assert "trace" in result
 
     def test_weave_pattern_input(self):
         """测试从Pattern对象输入进行织径"""
@@ -134,7 +134,7 @@ class TestWeavingEngine:
             assert "path_id" in result
             assert "duration_sec" in result
             assert "state_sequence" in result
-            assert "trace_data" in result
+            assert "trace" in result
 
     def test_weave_invalid_input(self):
         """测试使用无效输入进行织径"""
@@ -151,15 +151,8 @@ class TestWeavingEngine:
     def test_weave_splicing_error(self):
         """测试织径过程中发生拼接错误"""
         # 创建模拟的Stitcher，抛出SplicingError
-        with (
-            patch.object(self.weaving_engine.stitcher, "stitch") as mock_stitch,
-            patch("traceloom.weaving.engine.HoloWANTrace") as mock_holowan_trace,
-        ):
-            mock_stitch.side_effect = SplicingError("拼接失败")
-
-            # 模拟HoloWANTrace.load方法
-            mock_trace_instance = mock_holowan_trace.return_value
-            mock_trace_instance.get_filtered_extended_windows_with_stats.return_value = ([], {})
+        with patch.object(self.weaving_engine.stitcher, "weave") as mock_weave:
+            mock_weave.side_effect = SplicingError("拼接失败")
 
             # 测试绣织功能，应该捕获并重新抛出SplicingError
             with pytest.raises(SplicingError):
@@ -195,7 +188,7 @@ class TestWeavingEngine:
             assert "path_id" in result
             assert "duration_sec" in result
             assert "state_sequence" in result
-            assert "trace_data" in result
+            assert "trace" in result
 
     def test_weave_dream_mode(self):
         """测试广织模式"""
@@ -227,16 +220,20 @@ class TestWeavingEngine:
             assert "path_id" in result
             assert "duration_sec" in result
             assert "state_sequence" in result
-            assert "trace_data" in result
+            assert "trace" in result
 
     def test_save_result(self):
         """测试保存织径结果"""
+        # 创建模拟的HoloWANTrace对象
+        mock_trace = MagicMock()
+        mock_trace.dump = MagicMock()
+
         # 创建模拟的织径结果
         result = {
             "path_id": "test_path_id",
             "duration_sec": 50,
             "state_sequence": "s0x2 -> s1x3",
-            "trace_data": [[100.0, 0.01, 10.0, 100.0, 0.01, 10.0]] * 10,
+            "trace": mock_trace,
         }
 
         # 创建临时文件
@@ -245,9 +242,8 @@ class TestWeavingEngine:
         # 测试保存结果
         self.weaving_engine.save_result(result, str(temp_file))
 
-        # 验证文件存在
-        assert temp_file.exists()
-        assert temp_file.stat().st_size > 0
+        # 验证dump方法被调用
+        mock_trace.dump.assert_called_once_with(str(temp_file))
 
 
 class TestWeavingEnginePerformance:

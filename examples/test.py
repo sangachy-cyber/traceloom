@@ -1,12 +1,8 @@
 from pathlib import Path
 
-from traceloom.domain.pathlet import Pathlet
 from traceloom.domain.pattern import PatternParser
 from traceloom.io import HoloWANTrace
 from traceloom.models.state_gmm import StateGMM
-
-import traceloom as tl
-
 
 holowan_trace = HoloWANTrace.load("/Users/xiaotuanzi/Downloads/20260130_003915_UuL-playback.txt")
 

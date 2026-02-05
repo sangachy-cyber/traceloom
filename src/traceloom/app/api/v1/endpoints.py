@@ -10,12 +10,17 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from traceloom.core.logger import logger
+from traceloom.core.response_handler import ResponseHandler
 from traceloom.services.weaver_service import WeaverService
 from traceloom.storage.pathlet_storage import PathletStorage
 from traceloom.storage.task_store import TaskStore
 
 from .schemas import (
     HealthCheckResponse,
+    HoloWANApplyRequest,
+    HoloWANApplyResponse,
+    HoloWANBindIPRequest,
+    HoloWANBindIPResponse,
     ImpairmentDevice,
     TaskStatusResponse,
     TaskStopResponse,
@@ -31,20 +36,90 @@ pathlet_storage = PathletStorage()
 weaver_service = WeaverService(task_store, pathlet_storage)
 
 
-@router.get("/health", response_model=HealthCheckResponse, tags=["system"])
-def health_check(request: Request):
-    """健康检查端点
+def _handle_task_execution(
+    request: Request, weave_request: WeaveRequest, engine_type: str, background_tasks: BackgroundTasks
+):
+    """处理任务执行
 
-    返回服务的健康状态
+    参数:
+        request: HTTP请求对象
+        weave_request: 编织请求对象
+        engine_type: 引擎类型
+        background_tasks: 后台任务对象
+
+    返回:
+        WeaveResponse: 编织响应对象
     """
     timestamp = datetime.now()
     logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {dict(request.query_params)} | 时间戳: {timestamp}"
+        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {weave_request.model_dump()} | 时间戳: {timestamp}"
     )
 
-    response = HealthCheckResponse(status="ok", timestamp=timestamp, version="1.0.0")
+    try:
+        # 生成任务ID
+        task_id = _generate_task_id(engine_type)
 
-    logger.info(f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: ok")
+        # 创建任务
+        task_store.create_task(task_id, weave_request, engine_type)
+
+        # 根据引擎类型执行任务
+        if engine_type == "auto":
+            background_tasks.add_task(weaver_service.execute_task, task_id, weave_request)
+        elif engine_type == "reweaver":
+            background_tasks.add_task(weaver_service.execute_reweave, task_id, weave_request)
+        elif engine_type == "stitcher":
+            background_tasks.add_task(weaver_service.execute_stitch, task_id, weave_request)
+        elif engine_type == "dreamer":
+            background_tasks.add_task(weaver_service.execute_dream, task_id, weave_request)
+
+        # 返回响应
+        response = _create_task_response(
+            task_id=task_id,
+            engine=engine_type,
+            status="accepted",
+            message="网络损伤注入已启动（需手动停止）",
+            prefix=engine_type if engine_type != "auto" else "weave",
+        )
+
+        logger.info(
+            f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: accepted | 任务ID: {task_id}"
+        )
+        return response
+    except Exception as e:
+        logger.error(f"执行织径任务失败: {e}")
+        logger.info(
+            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: error"
+        )
+        ResponseHandler.raise_http_exception(e)
+
+
+def _handle_task_status(request: Request, task_id: str, prefix: str):
+    """处理任务状态查询
+
+    参数:
+        request: HTTP请求对象
+        task_id: 任务唯一标识
+        prefix: 路径前缀
+
+    返回:
+        TaskStatusResponse: 任务状态响应对象
+    """
+    timestamp = datetime.now()
+    logger.info(
+        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
+    )
+
+    task_info = task_store.get_task(task_id)
+    if not task_info:
+        logger.info(
+            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
+        )
+        raise HTTPException(status_code=404, detail=f"任务 {task_id} 不存在")
+
+    response = _create_status_response(task_info, prefix)
+    logger.info(
+        f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: {task_info['status']} | 任务ID: {task_id}"
+    )
     return response
 
 
@@ -134,46 +209,119 @@ def _create_stop_response(task_id: str, status: str, message: str, prefix: str) 
     )
 
 
+def _handle_task_stop(request: Request, task_id: str, prefix: str):
+    """处理任务停止
+
+    参数:
+        request: HTTP请求对象
+        task_id: 任务唯一标识
+        prefix: 路径前缀
+
+    返回:
+        TaskStopResponse: 任务停止响应对象
+    """
+    timestamp = datetime.now()
+    logger.info(
+        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
+    )
+
+    try:
+        # 取消任务
+        result = weaver_service.cancel_task(task_id)
+
+        if result is None:
+            # 任务取消成功
+            response = _create_stop_response(task_id, "completed", "任务已成功停止", prefix)
+            logger.info(
+                f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: completed | 任务ID: {task_id}"
+            )
+        else:
+            # 任务取消失败
+            response = _create_stop_response(task_id, "error", result.message, prefix)
+            logger.info(
+                f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: error | 任务ID: {task_id}"
+            )
+
+        return response
+    except Exception as e:
+        logger.error(f"停止任务失败: {e}")
+        logger.info(
+            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: error"
+        )
+        ResponseHandler.raise_http_exception(e)
+
+
+def _handle_playback_download(request: Request, task_id: str):
+    """处理回放文件下载
+
+    参数:
+        request: HTTP请求对象
+        task_id: 任务唯一标识
+
+    返回:
+        FileResponse: 文件响应对象
+    """
+    timestamp = datetime.now()
+    logger.info(
+        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
+    )
+
+    try:
+        # 获取回放文件路径
+        playback_file_path = weaver_service.get_playback_file_path(task_id)
+
+        if not playback_file_path:
+            logger.info(
+                f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
+            )
+            raise HTTPException(status_code=404, detail="回放文件不存在")
+
+        # 检查文件是否存在
+        file_path = Path(playback_file_path)
+        if not file_path.exists():
+            logger.info(
+                f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
+            )
+            raise HTTPException(status_code=404, detail="回放文件不存在")
+
+        logger.info(
+            f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: success | 文件: {file_path.name}"
+        )
+        return FileResponse(path=file_path, filename=file_path.name, media_type="text/plain")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"下载回放文件失败: {e}")
+        logger.info(
+            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: error"
+        )
+        ResponseHandler.raise_http_exception(e)
+
+
+@router.get("/health", response_model=HealthCheckResponse, tags=["system"])
+def health_check(request: Request):
+    """健康检查端点
+
+    返回服务的健康状态
+    """
+    timestamp = datetime.now()
+    logger.info(
+        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {dict(request.query_params)} | 时间戳: {timestamp}"
+    )
+
+    response = HealthCheckResponse(status="ok", timestamp=timestamp.isoformat(), version="1.0.0")
+
+    logger.info(f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: ok")
+    return response
+
+
 @router.post("/weave", response_model=WeaveResponse, tags=["weaver"])
 def weave(request: Request, weave_request: WeaveRequest, background_tasks: BackgroundTasks):
     """自动选择引擎端点
 
     根据织样自动选择合适的引擎执行织径任务
     """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {weave_request.model_dump()} | 时间戳: {timestamp}"
-    )
-
-    try:
-        # 生成任务ID
-        task_id = _generate_task_id("weave")
-
-        # 创建任务
-        task_store.create_task(task_id, weave_request, "auto")
-
-        # 后台执行任务
-        background_tasks.add_task(weaver_service.execute_task, task_id, weave_request)
-
-        # 返回响应
-        response = _create_task_response(
-            task_id=task_id,
-            engine="auto",
-            status="accepted",
-            message="网络损伤注入已启动（需手动停止）",
-            prefix="weave",
-        )
-
-        logger.info(
-            f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: accepted | 任务ID: {task_id}"
-        )
-        return response
-    except Exception as e:
-        logger.error(f"执行织径任务失败: {e}")
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: error"
-        )
-        raise HTTPException(status_code=500, detail=f"执行织径任务失败: {str(e)}") from e
+    return _handle_task_execution(request, weave_request, "auto", background_tasks)
 
 
 @router.post("/reweave", response_model=WeaveResponse, tags=["weaver"])
@@ -182,40 +330,7 @@ def reweave(request: Request, weave_request: WeaveRequest, background_tasks: Bac
 
     使用 Reweave 引擎执行织径任务
     """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {weave_request.model_dump()} | 时间戳: {timestamp}"
-    )
-
-    try:
-        # 生成任务ID
-        task_id = _generate_task_id("reweave")
-
-        # 创建任务
-        task_store.create_task(task_id, weave_request, "reweaver")
-
-        # 后台执行任务
-        background_tasks.add_task(weaver_service.execute_reweave, task_id, weave_request)
-
-        # 返回响应
-        response = _create_task_response(
-            task_id=task_id,
-            engine="reweaver",
-            status="accepted",
-            message="网络损伤注入已启动（需手动停止）",
-            prefix="reweave",
-        )
-
-        logger.info(
-            f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: accepted | 任务ID: {task_id}"
-        )
-        return response
-    except Exception as e:
-        logger.error(f"执行 Reweaver 任务失败: {e}")
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: error"
-        )
-        raise HTTPException(status_code=500, detail=f"执行 Reweaver 任务失败: {str(e)}") from e
+    return _handle_task_execution(request, weave_request, "reweaver", background_tasks)
 
 
 @router.post("/stitch", response_model=WeaveResponse, tags=["weaver"])
@@ -224,40 +339,7 @@ def stitch(request: Request, weave_request: WeaveRequest, background_tasks: Back
 
     使用 Stitch 引擎执行织径任务
     """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {weave_request.model_dump()} | 时间戳: {timestamp}"
-    )
-
-    try:
-        # 生成任务ID
-        task_id = _generate_task_id("stitch")
-
-        # 创建任务
-        task_store.create_task(task_id, weave_request, "stitcher")
-
-        # 后台执行任务
-        background_tasks.add_task(weaver_service.execute_stitch, task_id, weave_request)
-
-        # 返回响应
-        response = _create_task_response(
-            task_id=task_id,
-            engine="stitcher",
-            status="accepted",
-            message="网络损伤注入已启动（需手动停止）",
-            prefix="stitch",
-        )
-
-        logger.info(
-            f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: accepted | 任务ID: {task_id}"
-        )
-        return response
-    except Exception as e:
-        logger.error(f"执行 Stitcher 任务失败: {e}")
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: error"
-        )
-        raise HTTPException(status_code=500, detail=f"执行 Stitcher 任务失败: {str(e)}") from e
+    return _handle_task_execution(request, weave_request, "stitcher", background_tasks)
 
 
 @router.post("/dream", response_model=WeaveResponse, tags=["weaver"])
@@ -266,40 +348,7 @@ def dream(request: Request, weave_request: WeaveRequest, background_tasks: Backg
 
     使用 Dream 引擎执行织径任务
     """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {weave_request.model_dump()} | 时间戳: {timestamp}"
-    )
-
-    try:
-        # 生成任务ID
-        task_id = _generate_task_id("dream")
-
-        # 创建任务
-        task_store.create_task(task_id, weave_request, "dreamer")
-
-        # 后台执行任务
-        background_tasks.add_task(weaver_service.execute_dream, task_id, weave_request)
-
-        # 返回响应
-        response = _create_task_response(
-            task_id=task_id,
-            engine="dreamer",
-            status="accepted",
-            message="网络损伤注入已启动（需手动停止）",
-            prefix="dream",
-        )
-
-        logger.info(
-            f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: accepted | 任务ID: {task_id}"
-        )
-        return response
-    except Exception as e:
-        logger.error(f"执行 Dreamer 任务失败: {e}")
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: error"
-        )
-        raise HTTPException(status_code=500, detail=f"执行 Dreamer 任务失败: {str(e)}") from e
+    return _handle_task_execution(request, weave_request, "dreamer", background_tasks)
 
 
 @router.get("/weave/{task_id}", response_model=TaskStatusResponse, tags=["weaver"])
@@ -308,23 +357,7 @@ def get_weave_status(request: Request, task_id: str):
 
     查询使用自动选择引擎执行的织径任务状态
     """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
-    )
-
-    task_info = task_store.get_task(task_id)
-    if not task_info:
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
-        )
-        raise HTTPException(status_code=404, detail=f"任务 {task_id} 不存在")
-
-    response = _create_status_response(task_info, "weave")
-    logger.info(
-        f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: {task_info['status']} | 任务ID: {task_id}"
-    )
-    return response
+    return _handle_task_status(request, task_id, "weave")
 
 
 @router.get("/reweave/{task_id}", response_model=TaskStatusResponse, tags=["weaver"])
@@ -333,23 +366,7 @@ def get_reweave_status(request: Request, task_id: str):
 
     查询使用 Reweave 引擎执行的织径任务状态
     """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
-    )
-
-    task_info = task_store.get_task(task_id)
-    if not task_info:
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
-        )
-        raise HTTPException(status_code=404, detail=f"任务 {task_id} 不存在")
-
-    response = _create_status_response(task_info, "reweave")
-    logger.info(
-        f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: {task_info['status']} | 任务ID: {task_id}"
-    )
-    return response
+    return _handle_task_status(request, task_id, "reweave")
 
 
 @router.get("/stitch/{task_id}", response_model=TaskStatusResponse, tags=["weaver"])
@@ -358,23 +375,7 @@ def get_stitch_status(request: Request, task_id: str):
 
     查询使用 Stitch 引擎执行的织径任务状态
     """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
-    )
-
-    task_info = task_store.get_task(task_id)
-    if not task_info:
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
-        )
-        raise HTTPException(status_code=404, detail=f"任务 {task_id} 不存在")
-
-    response = _create_status_response(task_info, "stitch")
-    logger.info(
-        f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: {task_info['status']} | 任务ID: {task_id}"
-    )
-    return response
+    return _handle_task_status(request, task_id, "stitch")
 
 
 @router.get("/dream/{task_id}", response_model=TaskStatusResponse, tags=["weaver"])
@@ -383,23 +384,7 @@ def get_dream_status(request: Request, task_id: str):
 
     查询使用 Dream 引擎执行的织径任务状态
     """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
-    )
-
-    task_info = task_store.get_task(task_id)
-    if not task_info:
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
-        )
-        raise HTTPException(status_code=404, detail=f"任务 {task_id} 不存在")
-
-    response = _create_status_response(task_info, "dream")
-    logger.info(
-        f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: {task_info['status']} | 任务ID: {task_id}"
-    )
-    return response
+    return _handle_task_status(request, task_id, "dream")
 
 
 @router.delete("/weave/{task_id}", response_model=TaskStopResponse, tags=["weaver"])
@@ -408,33 +393,7 @@ def stop_weave_task(request: Request, task_id: str):
 
     停止使用自动选择引擎执行的织径任务
     """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
-    )
-
-    try:
-        # 停止任务
-        weaver_service.cancel_task(task_id)
-
-        # 返回响应
-        response = _create_stop_response(
-            task_id=task_id,
-            status="completed",
-            message="仿真已停止，HoloWAN 设备资源已清理",
-            prefix="weave",
-        )
-
-        logger.info(
-            f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: completed | 任务ID: {task_id}"
-        )
-        return response
-    except Exception as e:
-        logger.error(f"停止任务失败: {e}")
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: error"
-        )
-        raise HTTPException(status_code=500, detail=f"停止任务失败: {str(e)}") from e
+    return _handle_task_stop(request, task_id, "weave")
 
 
 @router.delete("/reweave/{task_id}", response_model=TaskStopResponse, tags=["weaver"])
@@ -443,33 +402,7 @@ def stop_reweave_task(request: Request, task_id: str):
 
     停止使用 Reweave 引擎执行的织径任务
     """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
-    )
-
-    try:
-        # 停止任务
-        weaver_service.cancel_task(task_id)
-
-        # 返回响应
-        response = _create_stop_response(
-            task_id=task_id,
-            status="completed",
-            message="仿真已停止，HoloWAN 设备资源已清理",
-            prefix="reweave",
-        )
-
-        logger.info(
-            f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: completed | 任务ID: {task_id}"
-        )
-        return response
-    except Exception as e:
-        logger.error(f"停止任务失败: {e}")
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: error"
-        )
-        raise HTTPException(status_code=500, detail=f"停止任务失败: {str(e)}") from e
+    return _handle_task_stop(request, task_id, "reweave")
 
 
 @router.delete("/stitch/{task_id}", response_model=TaskStopResponse, tags=["weaver"])
@@ -478,33 +411,7 @@ def stop_stitch_task(request: Request, task_id: str):
 
     停止使用 Stitch 引擎执行的织径任务
     """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
-    )
-
-    try:
-        # 停止任务
-        weaver_service.cancel_task(task_id)
-
-        # 返回响应
-        response = _create_stop_response(
-            task_id=task_id,
-            status="completed",
-            message="仿真已停止，HoloWAN 设备资源已清理",
-            prefix="stitch",
-        )
-
-        logger.info(
-            f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: completed | 任务ID: {task_id}"
-        )
-        return response
-    except Exception as e:
-        logger.error(f"停止任务失败: {e}")
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: error"
-        )
-        raise HTTPException(status_code=500, detail=f"停止任务失败: {str(e)}") from e
+    return _handle_task_stop(request, task_id, "stitch")
 
 
 @router.delete("/dream/{task_id}", response_model=TaskStopResponse, tags=["weaver"])
@@ -513,142 +420,97 @@ def stop_dream_task(request: Request, task_id: str):
 
     停止使用 Dream 引擎执行的织径任务
     """
+    return _handle_task_stop(request, task_id, "dream")
+
+
+@router.get("/{engine}/{task_id}/playback", tags=["weaver"])
+def download_playback(request: Request, engine: str, task_id: str):
+    """下载回放文件
+
+    下载织径任务的回放文件
+    """
+    return _handle_playback_download(request, task_id)
+
+
+def _handle_bind_ip(request: Request, bind_request: HoloWANBindIPRequest):
+    """处理IP绑定
+
+    参数:
+        request: HTTP请求对象
+        bind_request: 绑定IP请求对象
+
+    返回:
+        HoloWANBindIPResponse: 绑定IP响应对象
+    """
     timestamp = datetime.now()
     logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
+        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {bind_request.model_dump()} | 时间戳: {timestamp}"
     )
 
     try:
-        # 停止任务
-        weaver_service.cancel_task(task_id)
+        # 绑定IP到路径
+        result = weaver_service.bind_ip_to_path(bind_request.target_ip, bind_request.impairment_device)
 
-        # 返回响应
-        response = _create_stop_response(
-            task_id=task_id,
-            status="completed",
-            message="仿真已停止，HoloWAN 设备资源已清理",
-            prefix="dream",
-        )
+        response = HoloWANBindIPResponse(status=result["status"], path_id=result["path_id"], message="IP绑定成功")
 
         logger.info(
-            f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: completed | 任务ID: {task_id}"
+            f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: success | 路径ID: {result['path_id']}"
         )
         return response
     except Exception as e:
-        logger.error(f"停止任务失败: {e}")
+        logger.error(f"绑定IP失败: {e}")
         logger.info(
             f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: error"
         )
-        raise HTTPException(status_code=500, detail=f"停止任务失败: {str(e)}") from e
+        ResponseHandler.raise_http_exception(e)
 
 
-@router.get("/weave/{task_id}/playback", tags=["weaver"])
-def download_weave_playback(request: Request, task_id: str):
-    """下载自动选择引擎回放文件
+def _handle_apply_file(request: Request, apply_request: HoloWANApplyRequest):
+    """处理文件应用
 
-    下载使用自动选择引擎执行的织径任务的回放文件
+    参数:
+        request: HTTP请求对象
+        apply_request: 应用文件请求对象
+
+    返回:
+        HoloWANApplyResponse: 应用文件响应对象
     """
     timestamp = datetime.now()
     logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
+        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {apply_request.model_dump()} | 时间戳: {timestamp}"
     )
 
-    playback_file_path = weaver_service.get_playback_file_path(task_id)
-    if not playback_file_path or not Path(playback_file_path).exists():
+    try:
+        # 应用文件
+        result = weaver_service.apply_file(apply_request.file_name, apply_request.impairment_device)
+
+        response = HoloWANApplyResponse(status=result["status"], path_id=result["path_id"], message="文件应用成功")
+
         logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
+            f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: success | 路径ID: {result['path_id']}"
         )
-        raise HTTPException(status_code=404, detail="回放文件不存在")
-
-    logger.info(
-        f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: success | 任务ID: {task_id}"
-    )
-    return FileResponse(
-        path=playback_file_path,
-        media_type="text/plain",
-        filename=f"{task_id}.txt",
-    )
+        return response
+    except Exception as e:
+        logger.error(f"应用文件失败: {e}")
+        logger.info(
+            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: error"
+        )
+        ResponseHandler.raise_http_exception(e)
 
 
-@router.get("/reweave/{task_id}/playback", tags=["weaver"])
-def download_reweave_playback(request: Request, task_id: str):
-    """下载 Reweave 回放文件
+@router.post("/holowan/bind-ip", response_model=HoloWANBindIPResponse, tags=["holowan"])
+def bind_ip(request: Request, bind_request: HoloWANBindIPRequest):
+    """绑定IP到路径
 
-    下载使用 Reweave 引擎执行的织径任务的回放文件
+    将指定的IP地址绑定到HoloWAN设备的指定路径
     """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
-    )
-
-    playback_file_path = weaver_service.get_playback_file_path(task_id)
-    if not playback_file_path or not Path(playback_file_path).exists():
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
-        )
-        raise HTTPException(status_code=404, detail="回放文件不存在")
-
-    logger.info(
-        f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: success | 任务ID: {task_id}"
-    )
-    return FileResponse(
-        path=playback_file_path,
-        media_type="text/plain",
-        filename=f"{task_id}.txt",
-    )
+    return _handle_bind_ip(request, bind_request)
 
 
-@router.get("/stitch/{task_id}/playback", tags=["weaver"])
-def download_stitch_playback(request: Request, task_id: str):
-    """下载 Stitch 回放文件
+@router.post("/holowan/apply", response_model=HoloWANApplyResponse, tags=["holowan"])
+def apply_file(request: Request, apply_request: HoloWANApplyRequest):
+    """应用文件到设备
 
-    下载使用 Stitch 引擎执行的织径任务的回放文件
+    将指定的文件上传并应用到HoloWAN设备
     """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
-    )
-
-    playback_file_path = weaver_service.get_playback_file_path(task_id)
-    if not playback_file_path or not Path(playback_file_path).exists():
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
-        )
-        raise HTTPException(status_code=404, detail="回放文件不存在")
-
-    logger.info(
-        f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: success | 任务ID: {task_id}"
-    )
-    return FileResponse(
-        path=playback_file_path,
-        media_type="text/plain",
-        filename=f"{task_id}.txt",
-    )
-
-
-@router.get("/dream/{task_id}/playback", tags=["weaver"])
-def download_dream_playback(request: Request, task_id: str):
-    """下载 Dream 回放文件
-
-    下载使用 Dream 引擎执行的织径任务的回放文件
-    """
-    timestamp = datetime.now()
-    logger.info(
-        f"[API] 请求开始 | 路径: {request.url.path} | 方法: {request.method} | 参数: {{'task_id': '{task_id}'}} | 时间戳: {timestamp}"
-    )
-
-    playback_file_path = weaver_service.get_playback_file_path(task_id)
-    if not playback_file_path or not Path(playback_file_path).exists():
-        logger.info(
-            f"[API] 请求失败 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: not_found"
-        )
-        raise HTTPException(status_code=404, detail="回放文件不存在")
-
-    logger.info(
-        f"[API] 请求完成 | 路径: {request.url.path} | 方法: {request.method} | 时间戳: {timestamp} | 状态: success | 任务ID: {task_id}"
-    )
-    return FileResponse(
-        path=playback_file_path,
-        media_type="text/plain",
-        filename=f"{task_id}.txt",
-    )
+    return _handle_apply_file(request, apply_request)

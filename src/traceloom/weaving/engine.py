@@ -110,7 +110,7 @@ class WeavingEngine:
             mode: 织径模式，支持"reweave"（重织）、"stitch"（绣织）、"dream"（广织）
 
         Returns:
-            Dict[str, Any]: 织径结果，包含path_id、duration_sec、state_sequence和trace_data
+            Dict[str, Any]: 织径结果，包含path_id、duration_sec、state_sequence和trace
 
         Raises:
             ValidationError: 输入格式无效或模式无效
@@ -143,7 +143,7 @@ class WeavingEngine:
         # 根据模式不同，对输入数据进行不同处理
         if mode == "reweave":
             # 重织模式：直接处理输入内容，不解析为Pattern
-            if '->' not in input_data and Path(input_data).is_file():
+            if "->" not in input_data and Path(input_data).is_file():
                 state_list = []
                 holowan_trace = HoloWANTrace.load(input_data)
                 pathlets, stats = holowan_trace.get_filtered_extended_windows_with_stats(step=100)
@@ -153,26 +153,27 @@ class WeavingEngine:
                 pattern = self.pattern_parser.parse(state_list)
             else:
                 pattern = self.pattern_parser._from_string(input_data)
-            result = self._reweave(pattern, [])
+            # 使用 Reweaver 生成 HoloWANTrace 对象
+            trace = self.reweaver.weave(pattern, self.global_sampler)
         else:
             # 绣织和广织模式：解析输入为Pattern
             # 1. 解析输入，转换为Pattern
             pattern = self.pattern_parser.parse(input_data)
 
-            # 2. 将状态名映射为状态ID
-            state_duration_sequence = []
-            for state_name, duration in pattern.sequence:
-                try:
-                    state_id = self.weaving_law.state_name_to_id(state_name)
-                    state_duration_sequence.append((state_id, duration))
-                except ValueError as e:
-                    raise StateMappingError(f"状态名映射失败：{e}") from e
-
-            # 3. 调度对应引擎
+            # 2. 调度对应引擎生成 HoloWANTrace 对象
             if mode == "stitch":
-                result = self._stitch(pattern, state_duration_sequence)
+                trace = self.stitcher.weave(pattern, self.global_sampler)
             elif mode == "dream":
-                result = self._dream(pattern, state_duration_sequence)
+                trace = self.dreamer.weave(pattern, self.global_sampler)
+
+        # 构建结果
+        duration_sec = sum(duration for _, duration in pattern.sequence)
+        result = {
+            "path_id": f"tl_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "duration_sec": duration_sec,
+            "state_sequence": pattern.to_string(),
+            "trace": trace,
+        }
 
         return result
 
@@ -365,22 +366,8 @@ class WeavingEngine:
             weaving_engine.save_result(result, "output.trace")
         """
 
-        # 创建HoloWANTrace对象并保存
-        holowan_trace = HoloWANTrace()
-
-        # 添加数据点
-        points = []
-        for data_point in result["trace_data"]:
-            if len(data_point) >= 6:
-                # 创建HoloWANDirection对象
-                up = HoloWANDirection(delay=data_point[0], loss=data_point[1], bw=data_point[2])
-                down = HoloWANDirection(delay=data_point[3], loss=data_point[4], bw=data_point[5])
-                # 创建HoloWANPoint对象并添加到列表
-                holo_point = HoloWANPoint(up=up, down=down)
-                points.append(holo_point)
-
-        # 设置轨迹点
-        holowan_trace.points = points
+        # 直接获取 HoloWANTrace 对象并保存
+        holowan_trace = result["trace"]
 
         # 写入文件
         holowan_trace.dump(output_file)

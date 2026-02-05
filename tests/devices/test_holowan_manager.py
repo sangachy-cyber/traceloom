@@ -2,8 +2,9 @@
 """HoloWAN 设备管理测试"""
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from traceloom.devices._holowan import HoloWAN
 

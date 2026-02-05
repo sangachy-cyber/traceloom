@@ -10,10 +10,11 @@ from traceloom.domain.pathlet import Pathlet
 from traceloom.domain.pattern import Pattern
 from traceloom.io.adapters import HoloWANTrace
 from traceloom.io.adapters._holowan import HoloWANDirection, HoloWANPoint
+from traceloom.weaving.engines.base import BaseEngine
 from traceloom.weaving.sampler.global_sampler import GlobalSampler
 
 
-class Reweaver:
+class Reweaver(BaseEngine):
     """径元重织器。
     用于拼接径元序列，实现平滑过渡效果。
 
@@ -210,30 +211,32 @@ class Reweaver:
             sampler: 全局采样器实例，用于采样径元
 
         返回:
-            观测数据列表
+            HoloWANTrace: 生成的 HoloWANTrace 对象
         """
         # 从织样序列生成观测数据
         logger.info(f"{pattern.sequence}")
         pathlet_sequence = sampler.sample_pathlets(pattern.sequence)
         trace_data = self.generate_trace(pathlet_sequence)
         logger.info(f"{len(trace_data)}")
+
+        # 创建 HoloWANTrace 对象
         holowan_trace = HoloWANTrace()
         # 添加数据点
         points = []
         for data_point in trace_data:
             if len(data_point) >= 6:
-                # 创建HoloWANDirection对象
+                # 创建 HoloWANDirection 对象
                 up = HoloWANDirection(delay=data_point[0], loss=data_point[1], bw=data_point[2])
                 down = HoloWANDirection(delay=data_point[3], loss=data_point[4], bw=data_point[5])
-                # 创建HoloWANPoint对象并添加到列表
+                # 创建 HoloWANPoint 对象并添加到列表
                 holo_point = HoloWANPoint(up=up, down=down)
                 points.append(holo_point)
 
         # 设置轨迹点
         holowan_trace.points = points
-        observations = holowan_trace.to_observations()
-        logger.info(f"成功生成 {len(observations)} 个观测数据")
-        return observations
+
+        logger.info(f"成功生成 {len(holowan_trace.points)} 个轨迹点")
+        return holowan_trace
 
 
 __all__ = ["Reweaver"]
